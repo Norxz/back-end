@@ -1,75 +1,122 @@
 package co.edu.unipiloto.backend.service
 
+import co.edu.unipiloto.backend.dto.ContactoDTO
+import co.edu.unipiloto.backend.dto.DireccionDTO
 import co.edu.unipiloto.backend.dto.SolicitudRequest
-import co.edu.unipiloto.backend.exception.ResourceNotFoundException
-import co.edu.unipiloto.backend.model.Direccion
-import co.edu.unipiloto.backend.model.Guia
-import co.edu.unipiloto.backend.model.Solicitud
-import co.edu.unipiloto.backend.model.User
-import co.edu.unipiloto.backend.repository.DireccionRepository
-import co.edu.unipiloto.backend.repository.GuiaRepository
-import co.edu.unipiloto.backend.repository.SolicitudRepository
-import co.edu.unipiloto.backend.repository.UserRepository
+import co.edu.unipiloto.backend.model.*
+import co.edu.unipiloto.backend.repository.*
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
-import java.util.*
+import java.time.LocalDate
+import kotlin.math.pow
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 @Service
 class SolicitudService(
     private val solicitudRepository: SolicitudRepository,
     private val userRepository: UserRepository,
-    private val guiaRepository: GuiaRepository
+    private val direccionRepository: DireccionRepository,
+    private val guiaRepository: GuiaRepository,
+    private val contactoService: ContactoService
 ) {
 
     /**
-     * Crea una nueva solicitud, incluyendo la generación de la Guía y la Dirección asociada.
-     * Esta operación es transaccional.
+     * Crea una nueva solicitud a partir de un DTO.
      */
-    @Transactional
     fun crearSolicitud(request: SolicitudRequest): Solicitud {
+        // 🔹 Buscar cliente
+        val cliente = userRepository.findById(request.clienteId)
+            .orElseThrow { IllegalArgumentException("Cliente con ID ${request.clienteId} no encontrado") }
 
-        // 1. Verificar si el cliente existe (Seguridad/Integridad)
-        val client: User = userRepository.findById(request.clientId)
-            .orElseThrow { ResourceNotFoundException("Cliente con ID ${request.clientId} no encontrado.") }
+        // 🔹 Guardar remitente evitando duplicados
+        val remitente = dtoToContacto(request.remitente)
+        val remitenteGuardado = contactoService.buscarPorNumeroIdentificacion(remitente.numeroIdentificacion)
+            .orElseGet { contactoService.guardar(remitente) }
 
-        // 2. Crear la Entidad Dirección
-        val nuevaDireccion = Direccion(
-            direccionCompleta = request.direccionCompleta,
-            ciudad = request.ciudad,
-            latitud = request.latitud,
-            longitud = request.longitud,
-            pisoApto = request.pisoApto,
-            notasEntrega = request.notasEntrega
+        // 🔹 Guardar destinatario evitando duplicados
+        val destinatario = dtoToContacto(request.destinatario)
+        val destinatarioGuardado = contactoService.buscarPorNumeroIdentificacion(destinatario.numeroIdentificacion)
+            .orElseGet { contactoService.guardar(destinatario) }
+
+        // 🔹 Guardar direcciones
+        val origen = dtoToDireccion(request.origenDireccion)
+        val destino = dtoToDireccion(request.destinoDireccion)
+        val origenGuardado = direccionRepository.save(origen)
+        val destinoGuardado = direccionRepository.save(destino)
+
+        val guia = Guia(
+            numeroGuia = generarNumeroGuia(),
+            trackingNumber = generarTrackingNumber(),
+            remitente = remitenteGuardado,
+            destinatario = destinatarioGuardado,
+            pesoKg = request.peso ?: 1.0,
+            altoCm = request.alto ?: 10.0,
+            anchoCm = request.ancho ?: 10.0,
+            largoCm = request.largo ?: 10.0,
+            contenidoDescripcion = request.contenido ?: "Sin descripción",
+            latitudDestino = destino.latitud,
+            longitudDestino = destino.longitud
         )
-        // No necesitamos guardar la dirección aquí explícitamente si usamos Cascade.ALL en Solicitud.
 
-        // 3. Crear la Entidad Guía (Generando el tracking number)
-        val trackingCode = UUID.randomUUID().toString().substring(0, 10).uppercase()
-        val nuevaGuia = Guia(
-            numeroGuia = trackingCode.substring(0, 8), // Código corto para UI
-            trackingNumber = trackingCode,
-            volumenM3 = null // Asumimos que el volumen es null por ahora
-        )
-        // nuevaGuia = guiaRepository.save(nuevaGuia) // Se guarda por Cascade.ALL
 
-        // 4. Crear la Entidad Solicitud, vinculando las anteriores
-        val nuevaSolicitud = Solicitud(
-            client = client,
-            direccion = nuevaDireccion,
-            guia = nuevaGuia,
-            fechaRecoleccion = request.fechaRecoleccion,
+        val guiaGuardada = guiaRepository.save(guia)
+
+        // 🔹 Crear solicitud
+        val solicitud = Solicitud(
+            cliente = cliente,
+            origenDireccion = origenGuardado,
+            destinoDireccion = destinoGuardado,
+            guia = guiaGuardada,
+            fechaRecoleccion = LocalDate.parse(request.fechaRecoleccion),
             franjaHoraria = request.franjaHoraria,
-            estado = "PENDIENTE",
-            pesoKg = request.pesoKg,
-            precio = request.precio
+            tipoServicio = "NORMAL",
+            observaciones = null // o agregar desde request si quieres
         )
 
-        // 5. Guardar la Solicitud (guarda Guía y Dirección por Cascade.ALL)
-        return solicitudRepository.save(nuevaSolicitud)
+        // 🔹 Calcular precio estimado (solo para logging)
+        val precioEstimado = calcularPrecio(origenGuardado, destinoGuardado, solicitud.tipoServicio)
+        println("💰 Precio estimado: $precioEstimado")
+
+        return solicitudRepository.save(solicitud)
     }
 
-    fun getSolicitudesByClientId(clientId: Long): List<Solicitud> {
-        // Llama al método de Spring Data JPA que definiste en SolicitudRepository
-        return solicitudRepository.findAllByClientId(clientId)
+    // ------------------------ UTILIDADES ------------------------
+
+    private fun dtoToContacto(dto: ContactoDTO) = Contacto(
+        nombreCompleto = dto.nombreCompleto,
+        tipoIdentificacion = dto.tipoIdentificacion,
+        numeroIdentificacion = dto.numeroIdentificacion,
+        telefono = dto.telefono
+    )
+
+    private fun dtoToDireccion(dto: DireccionDTO) = Direccion(
+        direccionCompleta = dto.direccionCompleta,
+        ciudad = dto.ciudad,
+        latitud = dto.latitud,
+        longitud = dto.longitud,
+        pisoApto = dto.pisoApto,
+        notasEntrega = dto.notasEntrega
+    )
+
+    private fun calcularPrecio(origen: Direccion, destino: Direccion, tipoServicio: String): Double {
+        val distancia = sqrt(
+            ((destino.latitud ?: 0.0) - (origen.latitud ?: 0.0)).pow(2) +
+                    ((destino.longitud ?: 0.0) - (origen.longitud ?: 0.0)).pow(2)
+        ) * 111.0
+
+        var precioBase = 5000.00 + distancia * 300
+        if (tipoServicio.uppercase() == "EXPRESS") precioBase *= 1.3
+
+        return (precioBase * 100).roundToInt() / 100.0
+    }
+
+    private fun generarNumeroGuia(): String = "G-${System.currentTimeMillis()}"
+    private fun generarTrackingNumber(): String = "TRK-${System.nanoTime()}"
+
+    fun obtenerTodas(): List<Solicitud> = solicitudRepository.findAll()
+    fun obtenerPorId(id: Long): Solicitud? = solicitudRepository.findById(id).orElse(null)
+    fun eliminarSolicitud(id: Long) {
+        if (!solicitudRepository.existsById(id)) throw IllegalArgumentException("La solicitud con ID $id no existe")
+        solicitudRepository.deleteById(id)
     }
 }

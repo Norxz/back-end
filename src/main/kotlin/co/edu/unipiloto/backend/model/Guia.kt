@@ -11,26 +11,71 @@ data class Guia(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
 
-    // El número de guía que se muestra al usuario. Podría ser un UUID o un número secuencial.
-    @Column(name = "numero_guia", unique = true, nullable = false)
+    // Número de guía visible al usuario
+    @Column(nullable = false, unique = true)
     val numeroGuia: String,
 
-    @Column(name = "tracking_number", unique = true, nullable = false)
-    val trackingNumber: String, // Número de seguimiento interno (si es diferente del número de guía)
+    // Código interno de rastreo
+    @Column(nullable = false, unique = true)
+    val trackingNumber: String,
 
-    @Column(name = "volumen_m3")
-    val volumenM3: Double?,
+    // 📦 Dimensiones físicas
+    @Column
+    val pesoKg: Double? = null,
 
-    @Column(name = "fecha_creacion", nullable = false)
-    val fechaCreacion: Instant = Instant.now()
+    @Column
+    val altoCm: Double? = null,
 
-    // Aquí puedes añadir más campos, como el nombre del remitente/destinatario si lo necesitas
+    @Column
+    val anchoCm: Double? = null,
 
+    @Column
+    val largoCm: Double? = null,
+
+    // 📝 Descripción del contenido
+    @Column
+    val contenidoDescripcion: String? = null,
+
+    // 📍 Ubicación de destino (mapa)
+    @Column
+    val latitudDestino: Double? = null,
+
+    @Column
+    val longitudDestino: Double? = null,
+
+    // 🕒 Fecha y hora de creación
+    @Column(nullable = false)
+    val fechaCreacion: Instant = Instant.now(),
+
+    // 🔹 Relación con el remitente
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "remitente_id", nullable = false)
+    val remitente: Contacto,
+
+    // 🔹 Relación con el destinatario
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "destinatario_id", nullable = false)
+    val destinatario: Contacto
 ) {
-    // Constructor vacío requerido por JPA
+    // 🧮 Campo calculado: volumen (m³)
+    val volumenM3: Double
+        get() = if (altoCm != null && anchoCm != null && largoCm != null)
+            (altoCm!! * anchoCm!! * largoCm!!) / 1_000_000
+        else 0.0
+
+    // 💰 Campo calculado: precio estimado (ejemplo simple)
+    val precioEstimado: Double
+        get() {
+            val base = 8000.0
+            val peso = (pesoKg ?: 0.0) * 500.0
+            val volumen = volumenM3 * 20000.0
+            return base + peso + volumen
+        }
+
     constructor() : this(
         numeroGuia = "",
         trackingNumber = "",
-        volumenM3 = null
+        remitente = Contacto(),
+        destinatario = Contacto()
     )
 }

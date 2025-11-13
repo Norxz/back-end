@@ -2,6 +2,7 @@ package co.edu.unipiloto.backend.model
 
 import jakarta.persistence.*
 import java.time.Instant
+import java.time.LocalDate
 
 @Entity
 @Table(name = "solicitudes")
@@ -11,56 +12,77 @@ data class Solicitud(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
 
-    // Relación con el Cliente (el que hizo la solicitud)
-    @ManyToOne(fetch = FetchType.LAZY) // Muchas solicitudes pueden ser hechas por un solo User
-    @JoinColumn(name = "client_id", nullable = false)
-    val client: User, // Asumimos que la entidad User ya existe
+    // 🧍 Cliente que crea la solicitud
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cliente_id", nullable = false)
+    val cliente: User,
 
-    // Relación con el Recolector (LogisticUser) - Opcional al crear
-    // Nota: Deberías crear una entidad LogisticUser o usar la entidad User con role='CONDUCTOR'
+    // 🚚 Recolector asignado (opcional)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recolector_id")
     val recolector: User? = null,
 
-    // Relación con la Dirección (Los datos de la dirección deben ser persistidos)
-    // CascadeType.ALL asegura que si se borra la solicitud, se borra la dirección
+    // 📍 Dirección de origen
     @ManyToOne(cascade = [CascadeType.ALL], fetch = FetchType.EAGER)
-    @JoinColumn(name = "direccion_id", nullable = false)
-    val direccion: Direccion,
+    @JoinColumn(name = "origen_direccion_id", nullable = false)
+    val origenDireccion: Direccion,
 
-    // Relación con la Guía (El número de Guía se genera al crear la solicitud, como en la imagen)
-    @OneToOne(cascade = [CascadeType.ALL], fetch = FetchType.EAGER)
+    // 🎯 Dirección de destino
+    @ManyToOne(cascade = [CascadeType.ALL], fetch = FetchType.EAGER)
+    @JoinColumn(name = "destino_direccion_id", nullable = false)
+    val destinoDireccion: Direccion,
+
+    // 📦 Guía asociada
+    @OneToOne(cascade = [CascadeType.ALL], fetch = FetchType.EAGER, orphanRemoval = true)
     @JoinColumn(name = "guia_id", nullable = false)
     val guia: Guia,
 
-    @Column(name = "fecha_recoleccion", nullable = false)
-    val fechaRecoleccion: String, // Usar LocalDate es mejor, pero String por simplicidad inicial
+    // 📅 Fecha y franja horaria de recolección
+    @Column(nullable = false)
+    val fechaRecoleccion: LocalDate,
 
-    @Column(name = "franja_horaria", nullable = false)
+    @Column(nullable = false)
     val franjaHoraria: String,
 
-    // Campo que refleja el estado PENDIENTE, CANCELADA, etc. (como en la imagen de Android)
-    @Column(name = "estado", nullable = false)
-    val estado: String,
+    // 🚀 Tipo de servicio (normal, express, etc.)
+    @Column(nullable = false)
+    val tipoServicio: String = "NORMAL",
 
-    @Column(name = "peso_kg")
-    val pesoKg: Double,
+    // 🗒️ Observaciones del cliente
+    @Column(columnDefinition = "TEXT")
+    val observaciones: String? = null,
 
-    @Column(name = "precio")
-    val precio: Double,
+    // 📦 Estado actual de la solicitud
+    @Column(nullable = false)
+    val estado: String = "PENDIENTE",
 
-    @Column(name = "created_at", nullable = false)
-    val createdAt: Instant = Instant.now()
+    // 🕒 Fecha de creación y actualización
+    @Column(nullable = false)
+    val createdAt: Instant = Instant.now(),
+
+    @Column
+    val updatedAt: Instant? = null,
+
+    // 📆 Fecha estimada de entrega (opcional)
+    @Column
+    val fechaEntregaEstimada: LocalDate? = null
 ) {
-    // Constructor vacío requerido por JPA
     constructor() : this(
-        client = User(),
-        direccion = Direccion(),
+        cliente = User(),
+        origenDireccion = Direccion(),
+        destinoDireccion = Direccion(),
         guia = Guia(),
-        fechaRecoleccion = "",
+        fechaRecoleccion = LocalDate.now(),
         franjaHoraria = "",
-        estado = "PENDIENTE",
-        pesoKg = 0.0,
-        precio = 0.0
+        tipoServicio = "NORMAL",
+        estado = "PENDIENTE"
     )
+
+    // 💰 Cálculo dinámico del precio según la guía y tipo de servicio
+    val precioEstimado: Double
+        get() {
+            var base = guia.precioEstimado
+            if (tipoServicio == "EXPRESS") base *= 1.3
+            return base
+        }
 }
