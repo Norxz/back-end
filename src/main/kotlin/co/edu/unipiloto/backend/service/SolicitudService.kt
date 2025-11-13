@@ -119,4 +119,20 @@ class SolicitudService(
         if (!solicitudRepository.existsById(id)) throw IllegalArgumentException("La solicitud con ID $id no existe")
         solicitudRepository.deleteById(id)
     }
+
+
+    /**
+     * Actualiza el estado de una solicitud en la base de datos.
+     */
+    @Transactional
+    fun updateEstado(solicitudId: Long, newState: String): Solicitud {
+        val solicitud = solicitudRepository.findById(solicitudId)
+            .orElseThrow { ResourceNotFoundException("Solicitud con ID $solicitudId no encontrada.") }
+
+        // Cambia el estado (Ahora es posible porque 'estado' es 'var')
+        solicitud.estado = newState
+
+        // Guarda el cambio en la base de datos
+        return solicitudRepository.save(solicitud)
+    }
 }

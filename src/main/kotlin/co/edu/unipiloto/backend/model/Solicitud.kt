@@ -47,6 +47,9 @@ data class Solicitud(
     // 🚀 Tipo de servicio (normal, express, etc.)
     @Column(nullable = false)
     val tipoServicio: String = "NORMAL",
+    // Campo que refleja el estado PENDIENTE, CANCELADA, etc. (como en la imagen de Android)
+    @Column(name = "estado", nullable = false)
+    var estado: String,
 
     // 🗒️ Observaciones del cliente
     @Column(columnDefinition = "TEXT")
