@@ -41,7 +41,7 @@ data class Solicitud(
 
     // Campo que refleja el estado PENDIENTE, CANCELADA, etc. (como en la imagen de Android)
     @Column(name = "estado", nullable = false)
-    val estado: String,
+    var estado: String,
 
     @Column(name = "peso_kg")
     val pesoKg: Double,

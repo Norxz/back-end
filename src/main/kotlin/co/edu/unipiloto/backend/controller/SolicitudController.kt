@@ -41,4 +41,27 @@ class SolicitudController(private val solicitudService: SolicitudService) {
         return ResponseEntity(responseList, HttpStatus.OK)
     }
 
+    /**
+     * Endpoint para actualizar el estado de una solicitud (usado para Cancelar y Confirmar Entrega).
+     */
+    @PutMapping("/{solicitudId}/estado")
+    fun updateEstado(
+        @PathVariable solicitudId: Long,
+        @RequestBody estadoUpdate: Map<String, String>
+    ): ResponseEntity<*> {
+        val newState = estadoUpdate["estado"]
+
+        if (newState.isNullOrEmpty()) {
+            return ResponseEntity("Falta el campo 'estado' en la petición.", HttpStatus.BAD_REQUEST)
+        }
+
+        return try {
+            solicitudService.updateEstado(solicitudId, newState.uppercase())
+            ResponseEntity<Void>(HttpStatus.NO_CONTENT)
+        } catch (e: ResourceNotFoundException) {
+            ResponseEntity("Solicitud $solicitudId no encontrada.", HttpStatus.NOT_FOUND)
+        } catch (e: Exception) {
+            ResponseEntity("Error al actualizar el estado: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
+        }
+    }
 }
