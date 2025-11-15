@@ -5,6 +5,7 @@ import co.edu.unipiloto.backend.dto.SolicitudResponse
 import co.edu.unipiloto.backend.service.SolicitudService
 import co.edu.unipiloto.backend.exception.ResourceNotFoundException
 import co.edu.unipiloto.backend.model.Solicitud
+import co.edu.unipiloto.backend.model.Cliente
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -19,13 +20,11 @@ class SolicitudController(private val solicitudService: SolicitudService) {
             val nuevaSolicitud = solicitudService.crearSolicitud(request)
 
             val response = SolicitudResponse(nuevaSolicitud)
-            // Retorna la solicitud creada con código 201 Created
-            ResponseEntity(nuevaSolicitud, HttpStatus.CREATED)
+            ResponseEntity(response, HttpStatus.CREATED)
+
         } catch (e: ResourceNotFoundException) {
-            // Error 404 si el cliente ID no existe
             ResponseEntity(e.message, HttpStatus.NOT_FOUND)
         } catch (e: Exception) {
-            // Error 500 para cualquier otro fallo transaccional
             ResponseEntity("Error al crear la solicitud: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
