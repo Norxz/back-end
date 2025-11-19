@@ -63,4 +63,20 @@ class SolicitudController(private val solicitudService: SolicitudService) {
             ResponseEntity("Error al actualizar el estado: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
+
+    @GetMapping("/{solicitudId}/guia-pdf")
+    fun generarGuiaPdf(@PathVariable solicitudId: Long): ResponseEntity<*> {
+        return try {
+            val pdfBytes = solicitudService.generarPdfDeSolicitud(solicitudId)
+
+            ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=guia-${solicitudId}.pdf")
+                .body(pdfBytes)
+
+        } catch (e: ResourceNotFoundException) {
+            ResponseEntity(e.message, HttpStatus.NOT_FOUND)
+        } catch (e: Exception) {
+            ResponseEntity("Error al generar el PDF: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
+        }
+    }
 }

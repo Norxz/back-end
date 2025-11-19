@@ -13,6 +13,7 @@ import co.edu.unipiloto.backend.repository.ClienteRepository
 import co.edu.unipiloto.backend.repository.GuiaRepository
 import co.edu.unipiloto.backend.repository.SolicitudRepository
 import co.edu.unipiloto.backend.repository.UserRepository
+import co.edu.unipiloto.backend.utils.PdfGenerator
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -82,6 +83,23 @@ class SolicitudService(
 
         return solicitudRepository.save(nuevaSolicitud)
     }
+
+    fun generarPdfDeSolicitud(id: Long): ByteArray {
+        val solicitud = solicitudRepository.findById(id)
+            .orElseThrow { ResourceNotFoundException("Solicitud con ID $id no encontrada.") }
+
+        return PdfGenerator.createGuidePdf(
+            id = solicitud.id!!,
+            remitente = solicitud.remitente.nombre,
+            receptor = solicitud.receptor.nombre,
+            numeroGuia = solicitud.guia.numeroGuia,
+            trackingNumber = solicitud.guia.trackingNumber,
+            direccion = solicitud.direccion.direccionCompleta,
+            fechaRecoleccion = solicitud.fechaRecoleccion,
+            estado = solicitud.estado
+        )
+    }
+
 
     private fun obtenerOCrearCliente(clienteRequest: ClienteRequest): Cliente {
         // Intenta buscar por tipoId + numeroId
