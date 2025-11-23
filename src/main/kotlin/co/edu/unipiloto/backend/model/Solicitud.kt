@@ -27,7 +27,7 @@ data class Solicitud(
     @JoinColumn(name = "sucursal_id", nullable = false)
     val sucursal: Sucursal,
 
-    @ManyToOne(cascade = [CascadeType.ALL], fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "direccion_id", nullable = false)
     val direccion: Direccion,
 
