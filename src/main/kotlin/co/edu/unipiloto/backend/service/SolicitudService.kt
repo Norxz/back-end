@@ -9,6 +9,7 @@ import co.edu.unipiloto.backend.model.Guia
 import co.edu.unipiloto.backend.model.Solicitud
 import co.edu.unipiloto.backend.model.User
 import co.edu.unipiloto.backend.model.Paquete
+import co.edu.unipiloto.backend.model.Sucursal
 import co.edu.unipiloto.backend.repository.ClienteRepository
 import co.edu.unipiloto.backend.repository.GuiaRepository
 import co.edu.unipiloto.backend.repository.SolicitudRepository
@@ -47,7 +48,7 @@ class SolicitudService(
             direccionCompleta = request.direccion.direccionCompleta,
             ciudad = request.direccion.ciudad,
             latitud = request.direccion.latitud,
-            longitud = request.direccion.longitud   ,
+            longitud = request.direccion.longitud,
             pisoApto = request.direccion.pisoApto,
             notasEntrega = request.direccion.notasEntrega
         )
@@ -72,6 +73,7 @@ class SolicitudService(
             client = client,
             remitente = remitente,
             receptor = receptor,
+            sucursal = Sucursal(),
             direccion = nuevaDireccion,
             paquete = paquete,
             guia = nuevaGuia,

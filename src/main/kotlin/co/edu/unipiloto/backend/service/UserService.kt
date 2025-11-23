@@ -3,6 +3,8 @@ package co.edu.unipiloto.backend.service
 import co.edu.unipiloto.backend.dto.RegisterRequest
 import co.edu.unipiloto.backend.exception.ResourceAlreadyExistsException
 import co.edu.unipiloto.backend.model.User
+import co.edu.unipiloto.backend.model.Sucursal
+import co.edu.unipiloto.backend.repository.SucursalRepository
 import co.edu.unipiloto.backend.repository.UserRepository
 import co.edu.unipiloto.backend.security.PasswordService
 import org.springframework.stereotype.Service
@@ -14,7 +16,8 @@ import org.springframework.stereotype.Service
 @Service
 class UserService(
     private val userRepository: UserRepository,
-    private val passwordService: PasswordService // 👈 Inyección del servicio de hashing
+    private val passwordService: PasswordService,
+    private val sucursalRepository: SucursalRepository
 ) {
 
     /**
@@ -32,6 +35,12 @@ class UserService(
         // Se llama al servicio para generar el hash SHA-256
         val passwordHash = passwordService.hashPasswordSHA256(request.password)
 
+        val sucursal: Sucursal? = request.sucursalId?.let { id ->
+            sucursalRepository.findById(id).orElseThrow {
+                IllegalArgumentException("La sucursal con ID $id no existe.")
+            }
+        }
+
         // 3. Crear Entidad
         val newUser = User(
             fullName = request.fullName,
@@ -39,7 +48,7 @@ class UserService(
             passwordHash = passwordHash, // Usamos el hash generado
             phoneNumber = request.phoneNumber,
             role = request.role.uppercase(),
-            sucursal = request.sucursal,
+            sucursal = null,
             isActive = request.isActive
         )
 

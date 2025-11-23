@@ -23,6 +23,10 @@ data class Solicitud(
     @JoinColumn(name = "receptor_id", nullable = false)
     val receptor: Cliente,
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "sucursal_id", nullable = false)
+    val sucursal: Sucursal,
+
     @ManyToOne(cascade = [CascadeType.ALL], fetch = FetchType.EAGER)
     @JoinColumn(name = "direccion_id", nullable = false)
     val direccion: Direccion,
@@ -51,6 +55,7 @@ data class Solicitud(
         client = User(),
         remitente = Cliente(nombre = ""),
         receptor = Cliente(nombre = ""),
+        sucursal = Sucursal(),
         direccion = Direccion(),
         paquete = Paquete(),
         guia = Guia(),
@@ -58,5 +63,4 @@ data class Solicitud(
         franjaHoraria = "",
         estado = "PENDIENTE"
     )
-
 }

@@ -10,7 +10,7 @@ data class UserResponse(
     val email: String,
     val phoneNumber: String?,
     val role: String,
-    val sucursal: String?,
+    val sucursal: SucursalResponse?,
     val isActive: Boolean
 ) {
     // Constructor de mapeo (para mapear la Entidad User a este DTO)
@@ -20,7 +20,7 @@ data class UserResponse(
         email = user.email,
         phoneNumber = user.phoneNumber,
         role = user.role,
-        sucursal = user.sucursal,
+        sucursal = user.sucursal?.let { SucursalResponse(it) },
         isActive = user.isActive
     )
 }
