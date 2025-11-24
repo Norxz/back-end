@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service
  * Utiliza UserRepository para la persistencia y PasswordService para el hashing.
  */
 @Service
-class UserService(
+class AuthService(
     private val userRepository: UserRepository,
     private val passwordService: PasswordService,
     private val sucursalRepository: SucursalRepository
@@ -48,7 +48,7 @@ class UserService(
             passwordHash = passwordHash, // Usamos el hash generado
             phoneNumber = request.phoneNumber,
             role = request.role.uppercase(),
-            sucursal = null,
+            sucursal = sucursal,
             isActive = request.isActive
         )
 

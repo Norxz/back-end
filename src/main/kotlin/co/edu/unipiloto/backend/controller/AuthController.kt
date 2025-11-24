@@ -3,7 +3,7 @@ package co.edu.unipiloto.backend.controller
 import co.edu.unipiloto.backend.dto.LoginRequest
 import co.edu.unipiloto.backend.dto.RegisterRequest
 import co.edu.unipiloto.backend.exception.ResourceAlreadyExistsException
-import co.edu.unipiloto.backend.service.UserService
+import co.edu.unipiloto.backend.service.AuthService
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import co.edu.unipiloto.backend.dto.UserResponse
@@ -11,13 +11,13 @@ import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/api/v1/auth")
-class AuthController(private val userService: UserService) {
+class AuthController(private val authService: AuthService) {
 
     // --- REGISTRO ---
     @PostMapping("/register")
     fun registerUser(@RequestBody request: RegisterRequest): ResponseEntity<*> {
         return try {
-            val newUser = userService.register(request)
+            val newUser = authService.register(request)
             ResponseEntity(UserResponse(newUser), HttpStatus.CREATED)
         } catch (e: ResourceAlreadyExistsException) {
             ResponseEntity(e.message, HttpStatus.CONFLICT)
@@ -30,7 +30,7 @@ class AuthController(private val userService: UserService) {
     @PostMapping("/login")
     fun loginUser(@RequestBody request: LoginRequest): ResponseEntity<*> {
         return try {
-            val user = userService.login(request.email, request.password)
+            val user = authService.login(request.email, request.password)
 
             if (user != null) {
                 // 🌟 Mapear la Entidad User al DTO de Respuesta

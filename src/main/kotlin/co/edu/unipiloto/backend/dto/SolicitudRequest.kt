@@ -7,5 +7,6 @@ data class SolicitudRequest(
     val direccion: DireccionRequest,
     val paquete: PaqueteRequest,
     val fechaRecoleccion: String,
-    val franjaHoraria: String
+    val franjaHoraria: String,
+    val sucursalId: Long
 )

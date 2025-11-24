@@ -21,8 +21,5 @@ data class Sucursal(
     val solicitudes: List<Solicitud> = emptyList()
 
 ) {
-    constructor() : this(
-        nombre = "",
-        direccion = Direccion()
-    )
+    constructor() : this(nombre = "", direccion = Direccion())
 }

@@ -6,7 +6,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
 @RestController
-@RequestMapping("/api/sucursales")
+@RequestMapping("/api/v1/sucursales")
 class SucursalController(
     private val sucursalRepository: SucursalRepository
 ) {

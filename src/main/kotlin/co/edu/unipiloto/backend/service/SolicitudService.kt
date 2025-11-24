@@ -16,7 +16,8 @@ class SolicitudService(
     private val userRepository: UserRepository,
     private val clienteRepository: ClienteRepository,
     private val guiaRepository: GuiaRepository,
-    private val direccionRepository: DireccionRepository
+    private val direccionRepository: DireccionRepository,
+    private val sucursalRepository: SucursalRepository
 
 ) {
 
@@ -60,12 +61,15 @@ class SolicitudService(
             contenido = request.paquete.contenido,
         )
 
+        val sucursal = sucursalRepository.findById(request.sucursalId)
+            .orElseThrow { ResourceNotFoundException("Sucursal con ID ${request.sucursalId} no encontrada") }
+
         // ⭐⭐ 4. Crear la Solicitud COMPLETA (con todos los campos)
         val nuevaSolicitud = Solicitud(
             client = client,
             remitente = remitente,
             receptor = receptor,
-            sucursal = Sucursal(),
+            sucursal = sucursal,
             direccion = nuevaDireccion,
             paquete = paquete,
             guia = nuevaGuia,
