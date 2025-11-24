@@ -24,8 +24,9 @@ data class User(
     @Column(name = "role", nullable = false)
     val role: String,
 
-    @Column(name = "sucursal")
-    val sucursal: String?,
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sucursal_id")
+    val sucursal: Sucursal?,
 
     @Column(name = "is_active", columnDefinition = "tinyint(1) default 1")
     val isActive: Boolean = true

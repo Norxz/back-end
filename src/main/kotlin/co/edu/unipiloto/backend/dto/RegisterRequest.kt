@@ -3,9 +3,9 @@ package co.edu.unipiloto.backend.dto
 data class RegisterRequest(
     val fullName: String,
     val email: String,
-    val password: String, // Recibimos la contraseña en texto plano (temporalmente)
+    val password: String,
     val phoneNumber: String?,
     val role: String,
-    val sucursal: String?,
+    val sucursalId: Long?,
     val isActive: Boolean = true
 )

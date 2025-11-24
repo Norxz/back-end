@@ -3,16 +3,8 @@ package co.edu.unipiloto.backend.service
 import co.edu.unipiloto.backend.dto.ClienteRequest
 import co.edu.unipiloto.backend.dto.SolicitudRequest
 import co.edu.unipiloto.backend.exception.ResourceNotFoundException
-import co.edu.unipiloto.backend.model.Cliente
-import co.edu.unipiloto.backend.model.Direccion
-import co.edu.unipiloto.backend.model.Guia
-import co.edu.unipiloto.backend.model.Solicitud
-import co.edu.unipiloto.backend.model.User
-import co.edu.unipiloto.backend.model.Paquete
-import co.edu.unipiloto.backend.repository.ClienteRepository
-import co.edu.unipiloto.backend.repository.GuiaRepository
-import co.edu.unipiloto.backend.repository.SolicitudRepository
-import co.edu.unipiloto.backend.repository.UserRepository
+import co.edu.unipiloto.backend.model.*
+import co.edu.unipiloto.backend.repository.*
 import co.edu.unipiloto.backend.utils.PdfGenerator
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -23,7 +15,9 @@ class SolicitudService(
     private val solicitudRepository: SolicitudRepository,
     private val userRepository: UserRepository,
     private val clienteRepository: ClienteRepository,
-    private val guiaRepository: GuiaRepository
+    private val guiaRepository: GuiaRepository,
+    private val direccionRepository: DireccionRepository,
+    private val sucursalRepository: SucursalRepository
 
 ) {
 
@@ -47,7 +41,7 @@ class SolicitudService(
             direccionCompleta = request.direccion.direccionCompleta,
             ciudad = request.direccion.ciudad,
             latitud = request.direccion.latitud,
-            longitud = request.direccion.longitud   ,
+            longitud = request.direccion.longitud,
             pisoApto = request.direccion.pisoApto,
             notasEntrega = request.direccion.notasEntrega
         )
@@ -67,11 +61,15 @@ class SolicitudService(
             contenido = request.paquete.contenido,
         )
 
+        val sucursal = sucursalRepository.findById(request.sucursalId)
+            .orElseThrow { ResourceNotFoundException("Sucursal con ID ${request.sucursalId} no encontrada") }
+
         // ⭐⭐ 4. Crear la Solicitud COMPLETA (con todos los campos)
         val nuevaSolicitud = Solicitud(
             client = client,
             remitente = remitente,
             receptor = receptor,
+            sucursal = sucursal,
             direccion = nuevaDireccion,
             paquete = paquete,
             guia = nuevaGuia,
@@ -137,5 +135,13 @@ class SolicitudService(
 
         // Guarda el cambio en la base de datos
         return solicitudRepository.save(solicitud)
+    }
+
+    fun findOrCreateDireccion(dir: Direccion): Direccion {
+        val existing = direccionRepository.findByDireccionCompletaAndCiudad(
+            dir.direccionCompleta,
+            dir.ciudad
+        )
+        return existing ?: direccionRepository.save(dir)
     }
 }
