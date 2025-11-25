@@ -1,7 +1,9 @@
 package co.edu.unipiloto.backend.model
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
 
+@JsonIgnoreProperties(value = ["hibernateLazyInitializer", "handler"])
 @Entity
 @Table(name = "sucursales")
 data class Sucursal(

@@ -31,4 +31,11 @@ class UserController(
 
         return ResponseEntity.ok(userRepository.save(actualizado))
     }
+
+    @GetMapping("/logistic")
+    fun getLogisticUsers(): ResponseEntity<List<User>> {
+        val all = userRepository.findAll()
+        val logistic = all.filter { it.role != "ADMIN" && it.role != "CLIENTE" }
+        return ResponseEntity.ok(logistic)
+    }
 }

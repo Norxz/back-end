@@ -1,7 +1,9 @@
 package co.edu.unipiloto.backend.model
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
 
+@JsonIgnoreProperties(value = ["hibernateLazyInitializer", "handler"])
 @Entity
 @Table(name = "users")
 data class User(
@@ -24,7 +26,7 @@ data class User(
     @Column(name = "role", nullable = false)
     val role: String,
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "sucursal_id")
     val sucursal: Sucursal?,
 
