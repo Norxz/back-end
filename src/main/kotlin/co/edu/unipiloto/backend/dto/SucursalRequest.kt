@@ -1,4 +1,8 @@
 package co.edu.unipiloto.backend.dto
 
-class SucursalRequest {
-}
+
+
+data class SucursalRequest(
+    val nombre: String,
+    val direccion: DireccionRequest
+)
