@@ -26,7 +26,17 @@ data class Direccion(
     val pisoApto: String?, // Información adicional como piso o número de apartamento
 
     @Column(name = "notas_entrega")
-    val notasEntrega: String? // Notas del cliente (ej. "Tocar 2 veces")
+    val notasEntrega: String?, // Notas del cliente (ej. "Tocar 2 veces")
+
+    @Column(name = "barrio")
+    val barrio: String? = null,
+
+    @Column(name = "codigo_postal")
+    val codigoPostal: String? = null,
+
+    @Column(name = "tipo_direccion")
+    val tipoDireccion: String? = null
+
 
 ) {
     // Constructor vacío requerido por JPA

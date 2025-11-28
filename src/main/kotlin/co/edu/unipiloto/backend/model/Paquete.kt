@@ -12,7 +12,9 @@ data class Paquete(
     val alto: Double? = null,
     val ancho: Double? = null,
     val largo: Double? = null,
-    val contenido: String? = null
+    val contenido: String? = null,
+    @Column(name = "categoria")
+    val categoria: String? = null,
 ) {
     constructor() : this(
         peso = 0.0,

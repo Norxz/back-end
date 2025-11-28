@@ -15,7 +15,6 @@ data class Sucursal(
     @Column(nullable = false)
     val nombre: String,
 
-    // --- CONFIGURACIÓN PARA 'direction_id' ---
     @OneToOne(cascade = [CascadeType.ALL], fetch = FetchType.EAGER)
     @JoinColumn(name = "direction_id", nullable = false)
     val direccion: Direccion,

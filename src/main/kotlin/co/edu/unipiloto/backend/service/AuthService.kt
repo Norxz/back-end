@@ -4,10 +4,12 @@ import co.edu.unipiloto.backend.dto.RegisterRequest
 import co.edu.unipiloto.backend.exception.ResourceAlreadyExistsException
 import co.edu.unipiloto.backend.model.User
 import co.edu.unipiloto.backend.model.Sucursal
+import co.edu.unipiloto.backend.model.enums.Role
 import co.edu.unipiloto.backend.repository.SucursalRepository
 import co.edu.unipiloto.backend.repository.UserRepository
 import co.edu.unipiloto.backend.security.PasswordService
 import org.springframework.stereotype.Service
+import java.time.Instant
 
 /**
  * Servicio encargado de la lógica de negocio para la gestión de usuarios (Registro, Login, etc.).
@@ -27,34 +29,35 @@ class AuthService(
     fun register(request: RegisterRequest): User {
 
         // 1. Validar duplicados
-        if (userRepository.findByEmail(request.email) != null) {
+        if (userRepository.existsByEmail(request.email)) {
             throw ResourceAlreadyExistsException("El email ${request.email} ya está registrado.")
         }
 
-        // 2. 🌟 HASHING DE CONTRASEÑA DELEGADO 🌟
-        // Se llama al servicio para generar el hash SHA-256
+        // 2. Hashing de contraseña
         val passwordHash = passwordService.hashPasswordSHA256(request.password)
 
+        // 3. Buscar sucursal si viene
         val sucursal: Sucursal? = request.sucursalId?.let { id ->
             sucursalRepository.findById(id).orElseThrow {
                 IllegalArgumentException("La sucursal con ID $id no existe.")
             }
         }
 
-        // 3. Crear Entidad
+        // 4. Crear la entidad User real
         val newUser = User(
             fullName = request.fullName,
             email = request.email,
-            passwordHash = passwordHash, // Usamos el hash generado
+            passwordHash = passwordHash,
             phoneNumber = request.phoneNumber,
-            role = request.role.uppercase(),
+            role = Role.valueOf(request.role.uppercase()),
             sucursal = sucursal,
             isActive = request.isActive
         )
 
-        // 4. Guardar y retornar
+        // 5. Guardar y retornar
         return userRepository.save(newUser)
     }
+
 
     /**
      * Intenta autenticar un usuario.
@@ -65,13 +68,8 @@ class AuthService(
     fun login(email: String, rawPassword: String): User? {
         val user = userRepository.findByEmail(email) ?: return null
 
-        // 2. Verificar la contraseña usando el servicio de hashing
-        val storedHash = user.passwordHash
-
-        return if (passwordService.verifyPassword(rawPassword, storedHash)) {
-            user // Login exitoso
-        } else {
-            null // Contraseña incorrecta
-        }
+        return if (passwordService.verifyPassword(rawPassword, user.passwordHash)) {
+            user
+        } else null
     }
 }

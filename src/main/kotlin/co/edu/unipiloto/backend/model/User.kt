@@ -1,7 +1,9 @@
 package co.edu.unipiloto.backend.model
 
+import co.edu.unipiloto.backend.model.enums.Role
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
+import java.time.Instant
 
 @JsonIgnoreProperties(value = ["hibernateLazyInitializer", "handler"])
 @Entity
@@ -10,6 +12,9 @@ data class User(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
+
+    @Column(name = "documento")
+    val documento: String? = null,
 
     @Column(name = "name")
     val fullName: String,
@@ -23,19 +28,29 @@ data class User(
     @Column(name = "phone_number")
     val phoneNumber: String?,
 
-    @Column(name = "role", nullable = false)
-    val role: String,
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    val role: Role,
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "sucursal_id")
     val sucursal: Sucursal?,
 
+    @Column(name = "fecha_creacion")
+    val fechaCreacion: Instant = Instant.now(),
+
+    @Column(name = "ultimo_login")
+    val ultimoLogin: Instant? = null,
+
     @Column(name = "is_active", columnDefinition = "tinyint(1) default 1")
     val isActive: Boolean = true
 ) {
-    // Constructor vacío requerido por JPA
     constructor() : this(
-        fullName = "", email = "", passwordHash = "",
-        phoneNumber = null, role = "", sucursal = null
+        fullName = "",
+        email = "",
+        passwordHash = "",
+        phoneNumber = null,
+        role = Role.USUARIO,
+        sucursal = null
     )
 }

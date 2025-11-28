@@ -4,6 +4,7 @@ import co.edu.unipiloto.backend.dto.ClienteRequest
 import co.edu.unipiloto.backend.dto.SolicitudRequest
 import co.edu.unipiloto.backend.exception.ResourceNotFoundException
 import co.edu.unipiloto.backend.model.*
+import co.edu.unipiloto.backend.model.enums.EstadoSolicitud
 import co.edu.unipiloto.backend.repository.*
 import co.edu.unipiloto.backend.utils.PdfGenerator
 import org.springframework.stereotype.Service
@@ -75,7 +76,7 @@ class SolicitudService(
             guia = nuevaGuia,
             fechaRecoleccion = request.fechaRecoleccion,
             franjaHoraria = request.franjaHoraria,
-            estado = "PENDIENTE"
+            estado = EstadoSolicitud.PENDIENTE
         )
 
 
@@ -94,27 +95,30 @@ class SolicitudService(
             trackingNumber = solicitud.guia.trackingNumber,
             direccion = solicitud.direccion.direccionCompleta,
             fechaRecoleccion = solicitud.fechaRecoleccion,
-            estado = solicitud.estado
+            estado = solicitud.estado.name
         )
     }
 
 
     private fun obtenerOCrearCliente(clienteRequest: ClienteRequest): Cliente {
-        // Intenta buscar por tipoId + numeroId
+        val numeroId = clienteRequest.numeroId ?: throw IllegalArgumentException("Número de documento es obligatorio")
+
         val existente = clienteRepository.findByTipoIdAndNumeroId(
             clienteRequest.tipoId ?: "",
-            clienteRequest.numeroId ?: ""
+            numeroId
         )
+
         return existente ?: clienteRepository.save(
             Cliente(
                 nombre = clienteRequest.nombre,
                 tipoId = clienteRequest.tipoId,
-                numeroId = clienteRequest.numeroId,
+                numeroId = numeroId,
                 telefono = clienteRequest.telefono,
                 codigoPais = clienteRequest.codigoPais
             )
         )
     }
+
 
     fun getSolicitudesByClientId(clientId: Long): List<Solicitud> {
         // Llama al método de Spring Data JPA que definiste en SolicitudRepository
@@ -130,12 +134,16 @@ class SolicitudService(
         val solicitud = solicitudRepository.findById(solicitudId)
             .orElseThrow { ResourceNotFoundException("Solicitud con ID $solicitudId no encontrada.") }
 
-        // Cambia el estado (Ahora es posible porque 'estado' es 'var')
-        solicitud.estado = newState
+        val estadoEnum = try {
+            EstadoSolicitud.valueOf(newState.uppercase())
+        } catch (e: IllegalArgumentException) {
+            throw IllegalArgumentException("Estado inválido: $newState")
+        }
 
-        // Guarda el cambio en la base de datos
+        solicitud.estado = estadoEnum
         return solicitudRepository.save(solicitud)
     }
+
 
     fun findOrCreateDireccion(dir: Direccion): Direccion {
         val existing = direccionRepository.findByDireccionCompletaAndCiudad(

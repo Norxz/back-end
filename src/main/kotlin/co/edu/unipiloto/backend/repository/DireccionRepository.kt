@@ -10,4 +10,10 @@ interface DireccionRepository : JpaRepository<Direccion, Long> {
         direccionCompleta: String,
         ciudad: String
     ): Direccion?
+
+    fun findByCiudadIgnoreCase(ciudad: String): List<Direccion>
+
+    fun existsByDireccionCompletaAndCiudad(direccionCompleta: String, ciudad: String): Boolean
+
+    fun findByBarrioContainingIgnoreCase(barrio: String): List<Direccion>
 }

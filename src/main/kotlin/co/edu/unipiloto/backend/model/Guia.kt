@@ -16,7 +16,17 @@ data class Guia(
     val trackingNumber: String,
 
     @Column(nullable = false)
-    val fechaCreacion: Instant = Instant.now()
+    val fechaCreacion: Instant = Instant.now(),
+
+    @Column(name = "costo_envio")
+    val costoEnvio: Double? = null,
+
+    @Column(name = "estado_guia")
+    val estadoGuia: String = "CREADA",
+
+    @Column(name = "ultima_actualizacion")
+    val ultimaActualizacion: Instant = Instant.now()
+
 ) {
     constructor() : this(
         id = null,
