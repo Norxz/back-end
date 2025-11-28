@@ -9,11 +9,26 @@ import org.springframework.http.ResponseEntity
 import co.edu.unipiloto.backend.dto.UserResponse
 import org.springframework.web.bind.annotation.*
 
+/**
+ * Controlador para la autenticación de usuarios.
+ *
+ * Expone endpoints para:
+ *  - Registro de nuevos usuarios
+ *  - Login de usuarios existentes
+ */
 @RestController
 @RequestMapping("/api/v1/auth")
 class AuthController(private val authService: AuthService) {
 
-    // --- REGISTRO ---
+    /**
+     * Endpoint para registrar un nuevo usuario.
+     *
+     * @param request DTO con la información de registro (nombre, email, contraseña, etc.)
+     * @return [ResponseEntity] con el usuario registrado o mensaje de error
+     *         - HTTP 201 CREATED si se registró correctamente
+     *         - HTTP 409 CONFLICT si el usuario ya existe
+     *         - HTTP 500 INTERNAL_SERVER_ERROR en caso de error inesperado
+     */
     @PostMapping("/register")
     fun registerUser(@RequestBody request: RegisterRequest): ResponseEntity<*> {
         return try {
@@ -26,7 +41,15 @@ class AuthController(private val authService: AuthService) {
         }
     }
 
-    // --- LOGIN ---
+    /**
+     * Endpoint para iniciar sesión de un usuario existente.
+     *
+     * @param request DTO con email y contraseña del usuario
+     * @return [ResponseEntity] con el usuario autenticado o mensaje de error
+     *         - HTTP 200 OK si el login es exitoso
+     *         - HTTP 401 UNAUTHORIZED si las credenciales son incorrectas
+     *         - HTTP 500 INTERNAL_SERVER_ERROR en caso de error inesperado
+     */
     @PostMapping("/login")
     fun loginUser(@RequestBody request: LoginRequest): ResponseEntity<*> {
         return try {
@@ -42,6 +65,4 @@ class AuthController(private val authService: AuthService) {
             ResponseEntity("Error interno del servidor.", HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
-
-
 }

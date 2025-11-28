@@ -3,25 +3,38 @@ package co.edu.unipiloto.backend.controller
 import co.edu.unipiloto.backend.dto.SolicitudRequest
 import co.edu.unipiloto.backend.dto.SolicitudResponse
 import co.edu.unipiloto.backend.service.SolicitudService
+import co.edu.unipiloto.backend.service.AsignacionService
 import co.edu.unipiloto.backend.exception.ResourceNotFoundException
 import co.edu.unipiloto.backend.model.Solicitud
-import co.edu.unipiloto.backend.model.Cliente
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
+/**
+ * Controlador para manejar todas las operaciones relacionadas con las solicitudes.
+ *
+ * Permite crear solicitudes, consultar por cliente, actualizar estado,
+ * generar PDF y asignar gestores o conductores.
+ */
 @RestController
 @RequestMapping("/api/v1/solicitudes")
-class SolicitudController(private val solicitudService: SolicitudService) {
+class SolicitudController(
+    private val solicitudService: SolicitudService,
+    private val asignacionService: AsignacionService
+) {
 
+    /**
+     * Crea una nueva solicitud.
+     *
+     * @param request DTO con los datos de la solicitud
+     * @return [ResponseEntity] con la nueva solicitud creada o error
+     */
     @PostMapping
     fun crearSolicitud(@RequestBody request: SolicitudRequest): ResponseEntity<*> {
         return try {
             val nuevaSolicitud = solicitudService.crearSolicitud(request)
-
             val response = SolicitudResponse(nuevaSolicitud)
             ResponseEntity(response, HttpStatus.CREATED)
-
         } catch (e: ResourceNotFoundException) {
             ResponseEntity(e.message, HttpStatus.NOT_FOUND)
         } catch (e: Exception) {
@@ -29,19 +42,26 @@ class SolicitudController(private val solicitudService: SolicitudService) {
         }
     }
 
+    /**
+     * Obtiene todas las solicitudes de un cliente específico.
+     *
+     * @param clientId ID del cliente
+     * @return Lista de [SolicitudResponse]
+     */
     @GetMapping("/client/{clientId}")
-    // 🏆 Cambia a devolver List<SolicitudResponse> (necesitarías crear este DTO en el backend)
     fun getSolicitudesByClient(@PathVariable clientId: Long): ResponseEntity<List<SolicitudResponse>> {
         val solicitudes: List<Solicitud> = solicitudService.getSolicitudesByClientId(clientId)
-
-        // 🏆 Mapear la lista de Entidades a la lista de DTOs de Respuesta
-        val responseList = solicitudes.map { SolicitudResponse(it) } // Necesitas definir SolicitudResponse en el backend
-
+        val responseList = solicitudes.map { SolicitudResponse(it) }
         return ResponseEntity(responseList, HttpStatus.OK)
     }
 
     /**
-     * Endpoint para actualizar el estado de una solicitud (usado para Cancelar y Confirmar Entrega).
+     * Actualiza el estado de una solicitud.
+     *
+     * Usado para operaciones como Cancelar o Confirmar Entrega.
+     *
+     * @param solicitudId ID de la solicitud
+     * @param estadoUpdate Mapa que debe contener el campo "estado"
      */
     @PutMapping("/{solicitudId}/estado")
     fun updateEstado(
@@ -64,19 +84,69 @@ class SolicitudController(private val solicitudService: SolicitudService) {
         }
     }
 
-    @GetMapping("/{solicitudId}/guia-pdf")
-    fun generarGuiaPdf(@PathVariable solicitudId: Long): ResponseEntity<*> {
+    /**
+     * Genera un PDF de la solicitud.
+     *
+     * @param id ID de la solicitud
+     * @return PDF en bytes o error si no se encuentra la solicitud
+     */
+    @GetMapping("/{id}/pdf")
+    fun generarPdf(@PathVariable id: Long): ResponseEntity<ByteArray> {
         return try {
-            val pdfBytes = solicitudService.generarPdfDeSolicitud(solicitudId)
+            val pdf = solicitudService.generarPdfDeSolicitud(id)
+            ResponseEntity(pdf, HttpStatus.OK)
+        } catch (e: ResourceNotFoundException) {
+            ResponseEntity(null, HttpStatus.NOT_FOUND)
+        } catch (e: Exception) {
+            ResponseEntity(null, HttpStatus.INTERNAL_SERVER_ERROR)
+        }
+    }
 
-            ResponseEntity.ok()
-                .header("Content-Disposition", "attachment; filename=guia-${solicitudId}.pdf")
-                .body(pdfBytes)
-
+    /**
+     * Asigna un gestor a una solicitud.
+     *
+     * @param solicitudId ID de la solicitud
+     * @param gestorId ID del gestor
+     * @return [SolicitudResponse] de la solicitud actualizada
+     */
+    @PostMapping("/{solicitudId}/asignar-gestor/{gestorId}")
+    fun asignarGestor(
+        @PathVariable solicitudId: Long,
+        @PathVariable gestorId: Long
+    ): ResponseEntity<*> {
+        return try {
+            val solicitud = asignacionService.asignarGestorASolicitud(solicitudId, gestorId)
+            ResponseEntity(SolicitudResponse(solicitud), HttpStatus.OK)
         } catch (e: ResourceNotFoundException) {
             ResponseEntity(e.message, HttpStatus.NOT_FOUND)
         } catch (e: Exception) {
-            ResponseEntity("Error al generar el PDF: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
+            ResponseEntity("Error al asignar gestor: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
+        }
+    }
+
+    /**
+     * Asigna un conductor a una solicitud.
+     *
+     * El gestor que realiza la asignación se pasa como parámetro.
+     *
+     * @param solicitudId ID de la solicitud
+     * @param gestorId ID del gestor
+     * @param conductorId ID del conductor
+     * @return [SolicitudResponse] de la solicitud actualizada
+     */
+    @PostMapping("/{solicitudId}/asignar-conductor")
+    fun asignarConductor(
+        @PathVariable solicitudId: Long,
+        @RequestParam gestorId: Long,
+        @RequestParam conductorId: Long
+    ): ResponseEntity<*> {
+        return try {
+            val solicitud = asignacionService.asignarConductorASolicitud(solicitudId, gestorId, conductorId)
+            ResponseEntity(SolicitudResponse(solicitud), HttpStatus.OK)
+        } catch (e: ResourceNotFoundException) {
+            ResponseEntity(e.message, HttpStatus.NOT_FOUND)
+        } catch (e: Exception) {
+            ResponseEntity("Error al asignar conductor: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
 }
