@@ -40,10 +40,15 @@ data class Solicitud(
     @JsonIgnoreProperties("solicitudes")
     val sucursal: Sucursal,
 
-    /** Dirección de entrega */
     @OneToOne(cascade = [CascadeType.ALL], fetch = FetchType.EAGER)
-    @JoinColumn(name = "direccion_id", nullable = false)
-    val direccion: Direccion,
+    // Se cambia 'nullable = false' a 'nullable = true'
+    @JoinColumn(name = "direccion_recoleccion_id", nullable = true)
+    val direccionRecoleccion: Direccion? = null, // ⬅️ Ahora es nullable
+
+    /** Dirección de entrega (Destino) */
+    @OneToOne(cascade = [CascadeType.ALL], fetch = FetchType.EAGER)
+    @JoinColumn(name = "direccion_entrega_id", nullable = false)
+    val direccionEntrega: Direccion,
 
     /** Paquete asociado a la solicitud */
     @OneToOne(cascade = [CascadeType.ALL], fetch = FetchType.EAGER)
@@ -119,7 +124,8 @@ data class Solicitud(
         remitente = Cliente(nombre = "", numeroId = ""),
         receptor = Cliente(nombre = "", numeroId = ""),
         sucursal = Sucursal(),
-        direccion = Direccion(),
+        direccionRecoleccion = null,
+        direccionEntrega = Direccion(),
         paquete = Paquete(),
         guia = Guia(),
         conductor = null,
