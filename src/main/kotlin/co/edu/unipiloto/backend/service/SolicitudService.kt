@@ -20,8 +20,8 @@ class SolicitudService(
     private val solicitudRepository: SolicitudRepository,
     private val userRepository: UserRepository,
     private val clienteRepository: ClienteRepository,
-    private val guiaRepository: GuiaRepository, // No se usa directamente para crear, pero inyectado
-    private val direccionRepository: DireccionRepository, // No se usa findOrCreateDireccion en el flujo principal, pero inyectado
+    private val guiaRepository: GuiaRepository,
+    private val direccionRepository: DireccionRepository,
     private val sucursalRepository: SucursalRepository
 ) {
 
@@ -44,35 +44,33 @@ class SolicitudService(
     @Transactional
     fun crearSolicitud(request: SolicitudRequest): Solicitud {
 
-        // 1. Verificar cliente (el User que realiza la solicitud en el sistema)
+        // 1. Verificar cliente y obtener Remitente/Receptor (código existente)
         val client: User = userRepository.findById(request.clientId)
             .orElseThrow { ResourceNotFoundException("Cliente con ID ${request.clientId} no encontrado.") }
 
-        // 2. Remitente y Receptor: Lógica de obtener o crear el Cliente
         val remitente = obtenerOCrearCliente(request.remitente)
         val receptor = obtenerOCrearCliente(request.receptor)
 
-        // 3. Dirección de entrega (se crea una nueva, asumiendo que la validación de duplicados
-        // se manejaría con findOrCreateDireccion si se integrara aquí, pero se crea directamente)
-        val nuevaDireccion = Direccion(
-            direccionCompleta = request.direccion.direccionCompleta,
-            ciudad = request.direccion.ciudad,
-            latitud = request.direccion.latitud,
-            longitud = request.direccion.longitud,
-            pisoApto = request.direccion.pisoApto,
-            notasEntrega = request.direccion.notasEntrega
+        // 2. Dirección de ENTREGA (Destino)
+        // Usamos el DTO de la solicitud (asumiendo que request.direccion es la de entrega)
+        val nuevaDireccionEntrega = Direccion(
+            direccionCompleta = request.direccionEntrega.direccionCompleta,
+            ciudad = request.direccionEntrega.ciudad,
+            latitud = request.direccionEntrega.latitud,
+            longitud = request.direccionEntrega.longitud,
+            pisoApto = request.direccionEntrega.pisoApto,
+            notasEntrega = request.direccionEntrega.notasEntrega
         )
+        // Nota: El DTO de SolicitudRequest necesita un campo para la Dirección de Recolección
+        // si esta debe ser creada, de lo contrario, la dejamos null.
+        val nuevaDireccionRecoleccion: Direccion? = null // Dejamos como null por ahora
 
-        // 4. Guía: Generación de identificadores únicos
+        // 3. Guía y Paquete (código existente)
         val trackingCode = UUID.randomUUID().toString().substring(0, 10).uppercase()
         val nuevaGuia = Guia(
-            // Asigna los primeros 8 caracteres como numeroGuia
             numeroGuia = trackingCode.substring(0, 8),
-            // Asigna el tracking code completo
             trackingNumber = trackingCode
         )
-
-        // 5. Paquete: Creación del objeto Paquete a partir del DTO
         val paquete = Paquete(
             peso = request.paquete.peso,
             alto = request.paquete.alto,
@@ -81,22 +79,24 @@ class SolicitudService(
             contenido = request.paquete.contenido,
         )
 
-        // 6. Sucursal: Verificación y obtención
+        // 4. Sucursal (código existente)
         val sucursal = sucursalRepository.findById(request.sucursalId)
             .orElseThrow { ResourceNotFoundException("Sucursal con ID ${request.sucursalId} no encontrada") }
 
-        // 7. Crear la Solicitud COMPLETA
+        // 5. Crear la Solicitud COMPLETA
         val nuevaSolicitud = Solicitud(
             client = client,
             remitente = remitente,
             receptor = receptor,
             sucursal = sucursal,
-            direccion = nuevaDireccion,
+            // 🚨 Asignamos explícitamente los dos nuevos campos de dirección
+            direccionRecoleccion = nuevaDireccionRecoleccion, // Asignado a null
+            direccionEntrega = nuevaDireccionEntrega, // Asignado al valor obligatorio
             paquete = paquete,
-            guia = nuevaGuia, // Se usa la guía recién creada
+            guia = nuevaGuia,
             fechaRecoleccion = request.fechaRecoleccion,
             franjaHoraria = request.franjaHoraria,
-            estado = EstadoSolicitud.PENDIENTE // Estado inicial fijo
+            estado = EstadoSolicitud.PENDIENTE
         )
 
         return solicitudRepository.save(nuevaSolicitud)
@@ -120,7 +120,7 @@ class SolicitudService(
             receptor = solicitud.receptor.nombre,
             numeroGuia = solicitud.guia.numeroGuia,
             trackingNumber = solicitud.guia.trackingNumber,
-            direccion = solicitud.direccion.direccionCompleta,
+            direccion = solicitud.direccionEntrega.direccionCompleta,
             fechaRecoleccion = solicitud.fechaRecoleccion,
             estado = solicitud.estado.name
         )
@@ -201,5 +201,22 @@ class SolicitudService(
             dir.ciudad
         )
         return existing ?: direccionRepository.save(dir)
+    }
+
+    /**
+     * 🔎 Recupera una [Solicitud] de envío utilizando el número de rastreo (trackingNumber) de su guía.
+     *
+     * Utiliza el método del repositorio que navega a través de la relación de la Guía.
+     *
+     * @param trackingNumber El código de guía único.
+     * @return La entidad [Solicitud] encontrada.
+     * @throws ResourceNotFoundException si no se encuentra la solicitud con el trackingNumber dado.
+     */
+    fun getSolicitudByTrackingNumber(trackingNumber: String): Solicitud {
+        return solicitudRepository.findByGuia_TrackingNumber(trackingNumber)
+            .orElseThrow {
+                // Si el Optional está vacío, lanza la excepción 404
+                ResourceNotFoundException("Solicitud con Tracking Number '$trackingNumber' no encontrada.")
+            }
     }
 }

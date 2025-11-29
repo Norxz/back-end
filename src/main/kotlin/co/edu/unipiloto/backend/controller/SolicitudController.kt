@@ -56,6 +56,28 @@ class SolicitudController(
     }
 
     /**
+     * Obtiene una solicitud por su número de rastreo (trackingNumber) de la guía.
+     *
+     * Mapea a: GET /api/v1/solicitudes/tracking/{trackingNumber}
+     *
+     * @param trackingNumber Número de guía único para el rastreo.
+     * @return [ResponseEntity] con la solicitud encontrada o un error 404.
+     */
+    @GetMapping("/tracking/{trackingNumber}")
+    fun getSolicitudByTrackingNumber(@PathVariable trackingNumber: String): ResponseEntity<*> {
+        return try {
+            val solicitud = solicitudService.getSolicitudByTrackingNumber(trackingNumber)
+            val response = SolicitudResponse(solicitud)
+            ResponseEntity(response, HttpStatus.OK)
+        } catch (e: ResourceNotFoundException) {
+            // Devuelve 404 si la solicitud no se encuentra
+            ResponseEntity(e.message, HttpStatus.NOT_FOUND)
+        } catch (e: Exception) {
+            ResponseEntity("Error interno al buscar la solicitud: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
+        }
+    }
+
+    /**
      * Actualiza el estado de una solicitud.
      *
      * Usado para operaciones como Cancelar o Confirmar Entrega.

@@ -5,6 +5,7 @@ import co.edu.unipiloto.backend.model.enums.EstadoSolicitud
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
 import java.time.Instant
+import java.util.Optional
 
 /**
  * Repositorio para la entidad [Solicitud] (Solicitud de Servicio de Envío).
@@ -96,25 +97,25 @@ interface SolicitudRepository : JpaRepository<Solicitud, Long> {
      * Busca una solicitud específica por el ID de la [Guia] asociada.
      *
      * @param guiaId El ID de la entidad Guia.
-     * @return La entidad [Solicitud] asociada a la guía, o null si no existe.
+     * @return Un [Optional] que contiene la entidad [Solicitud] asociada a la guía, o vacío si no existe.
      */
-    fun findByGuiaId(guiaId: Long): Solicitud?
+    fun findByGuiaId(guiaId: Long): Optional<Solicitud>
 
     /**
      * Busca una solicitud específica a través del campo 'numeroGuia' de su entidad [Guia] relacionada.
      * Utiliza la propiedad de navegación de JPA: Solicitud -> Guia -> numeroGuia.
      *
      * @param numeroGuia El número de guía único.
-     * @return La entidad [Solicitud] encontrada, o null.
+     * @return Un [Optional] que contiene la entidad [Solicitud] encontrada, o vacío.
      */
-    fun findByGuia_NumeroGuia(numeroGuia: String): Solicitud?
+    fun findByGuia_NumeroGuia(numeroGuia: String): Optional<Solicitud>
 
     /**
      * Busca una solicitud específica a través del campo 'trackingNumber' de su entidad [Guia] relacionada.
      * Utiliza la propiedad de navegación de JPA: Solicitud -> Guia -> trackingNumber.
      *
      * @param trackingNumber El número de seguimiento único.
-     * @return La entidad [Solicitud] encontrada, o null.
+     * @return Un [Optional] que contiene la entidad [Solicitud] encontrada, o vacío.
      */
-    fun findByGuia_TrackingNumber(trackingNumber: String): Solicitud?
+    fun findByGuia_TrackingNumber(trackingNumber: String): Optional<Solicitud>
 }

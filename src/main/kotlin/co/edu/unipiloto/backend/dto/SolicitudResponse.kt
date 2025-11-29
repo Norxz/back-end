@@ -10,7 +10,7 @@ import co.edu.unipiloto.backend.model.Solicitud
  * @property estado Estado actual de la solicitud (por ejemplo, PENDIENTE, CANCELADA, ENTREGADA)
  * @property fechaRecoleccion Fecha programada para la recolección
  * @property franjaHoraria Franja horaria de la recolección
- * @property direccionCompleta Dirección completa del punto de entrega o recolección, para mostrar en la UI
+ * @property direccionCompleta Dirección completa del punto de ENTREGA.
  * @property guia Información de la guía asociada a la solicitud (DTO GuiaResponse)
  */
 data class SolicitudResponse(
@@ -31,7 +31,7 @@ data class SolicitudResponse(
         estado = solicitud.estado.name,
         fechaRecoleccion = solicitud.fechaRecoleccion,
         franjaHoraria = solicitud.franjaHoraria,
-        direccionCompleta = solicitud.direccion.direccionCompleta,
+        direccionCompleta = solicitud.direccionEntrega.direccionCompleta,
         guia = GuiaResponse(solicitud.guia)
     )
 }
