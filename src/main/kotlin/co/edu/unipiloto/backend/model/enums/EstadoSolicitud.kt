@@ -17,6 +17,7 @@ enum class EstadoSolicitud {
     EN_RECOLECCION,
     RECOLECTADA,
     EN_DISTRIBUCION,
+    EN_RUTA,
     ENTREGADA,
     CANCELADA
 }

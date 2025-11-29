@@ -46,7 +46,7 @@ data class User(
     /** Sucursal asignada al usuario (opcional) */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "sucursal_id")
-    val sucursal: Sucursal?,
+    var sucursal: Sucursal?,
 
     /** Fecha de creación del usuario, por defecto el momento de inserción */
     @Column(name = "fecha_creacion")
@@ -58,7 +58,7 @@ data class User(
 
     /** Indica si el usuario está activo; por defecto true */
     @Column(name = "is_active", columnDefinition = "tinyint(1) default 1")
-    val isActive: Boolean = true
+    var isActive: Boolean = true
 ) {
     /**
      * Constructor vacío requerido por JPA.

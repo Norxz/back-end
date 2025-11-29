@@ -10,10 +10,19 @@ import co.edu.unipiloto.backend.utils.PdfGenerator
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
+import java.time.Instant
 
 /**
  * 📨 Servicio encargado de la lógica de negocio central para la gestión de [Solicitud]es de envío.
- * Coordina la creación de múltiples entidades relacionadas (Guía, Dirección, Paquete) en una sola operación transaccional.
+ * Coordina la creación y gestión de múltiples entidades relacionadas (Guía, Dirección, Paquete, Cliente, Sucursal)
+ * en una sola operación transaccional.
+ *
+ * @property solicitudRepository Repositorio para la entidad Solicitud.
+ * @property userRepository Repositorio para la entidad User (clientes, conductores, etc.).
+ * @property clienteRepository Repositorio para la entidad Cliente (remitentes, receptores).
+ * @property guiaRepository Repositorio para la entidad Guia.
+ * @property direccionRepository Repositorio para la entidad Direccion.
+ * @property sucursalRepository Repositorio para la entidad Sucursal.
  */
 @Service
 class SolicitudService(
@@ -27,45 +36,66 @@ class SolicitudService(
 
     /**
      * 📝 Crea una nueva solicitud de envío a partir de los datos del DTO [SolicitudRequest].
-     * Esta operación es transaccional para asegurar que todas las entidades relacionadas
-     * (Solicitud, Guía, Dirección, Paquete) se creen o actualicen correctamente.
+     * Esta operación es transaccional para asegurar la atomicidad en la creación de todas las entidades
+     * dependientes (Cliente, Dirección, Guía, Paquete).
      *
      * Flujo de Creación:
-     * 1. Verifica la existencia del usuario que crea la solicitud (`clientId`).
+     * 1. Verifica la existencia de [User] (client) y [Sucursal].
      * 2. Obtiene o crea las entidades [Cliente] para Remitente y Receptor.
-     * 3. Crea las entidades [Direccion], [Paquete], y [Guia] con sus identificadores únicos.
-     * 4. Asigna la [Sucursal] de gestión.
-     * 5. Crea la [Solicitud] con el estado inicial **PENDIENTE** y la guarda.
+     * 3. Obtiene o crea las entidades [Direccion] para Recolección (si existe) y Entrega.
+     * 4. Crea [Paquete] y [Guia] con un código de rastreo único.
+     * 5. Crea la [Solicitud] con el estado inicial **PENDIENTE** y la persiste.
      *
      * @param request El DTO con todos los datos necesarios para la Solicitud.
-     * @return La entidad [Solicitud] recién creada.
-     * @throws ResourceNotFoundException Si el cliente o la sucursal no existen.
+     * @return La entidad [Solicitud] recién creada y persistida.
+     * @throws ResourceNotFoundException Si el usuario creador (`clientId`) o la [Sucursal] no existen.
      */
     @Transactional
     fun crearSolicitud(request: SolicitudRequest): Solicitud {
 
-        // 1. Verificar cliente y obtener Remitente/Receptor (código existente)
+        // 1. Verificar existencia de entidades principales
         val client: User = userRepository.findById(request.clientId)
             .orElseThrow { ResourceNotFoundException("Cliente con ID ${request.clientId} no encontrado.") }
 
+        val sucursal = sucursalRepository.findById(request.sucursalId)
+            .orElseThrow { ResourceNotFoundException("Sucursal con ID ${request.sucursalId} no encontrada") }
+
+        // 2. Obtener o crear Remitente/Receptor
         val remitente = obtenerOCrearCliente(request.remitente)
         val receptor = obtenerOCrearCliente(request.receptor)
 
-        // 2. Dirección de ENTREGA (Destino)
-        // Usamos el DTO de la solicitud (asumiendo que request.direccion es la de entrega)
-        val nuevaDireccionEntrega = Direccion(
-            direccionCompleta = request.direccionEntrega.direccionCompleta,
-            ciudad = request.direccionEntrega.ciudad,
-            latitud = request.direccionEntrega.latitud,
-            longitud = request.direccionEntrega.longitud,
-            pisoApto = request.direccionEntrega.pisoApto,
-            notasEntrega = request.direccionEntrega.notasEntrega
-        )
-        // Nota: El DTO de SolicitudRequest necesita un campo para la Dirección de Recolección
-        // si esta debe ser creada, de lo contrario, la dejamos null.
-        val nuevaDireccionRecoleccion: Direccion? = null // Dejamos como null por ahora
+        // 3. Procesar Direcciones (Usando findOrCreateDireccion para evitar duplicados)
 
-        // 3. Guía y Paquete (código existente)
+        // Dirección de ENTREGA (Obligatoria)
+        val direccionEntregaEntity = request.direccionEntrega.let { dto ->
+            findOrCreateDireccion(
+                Direccion(
+                    direccionCompleta = dto.direccionCompleta,
+                    ciudad = dto.ciudad,
+                    latitud = dto.latitud,
+                    longitud = dto.longitud,
+                    pisoApto = dto.pisoApto,
+                    notasEntrega = dto.notasEntrega
+                )
+            )
+        }
+
+        // Dirección de RECOLECCIÓN (Opcional)
+        // Solo procesamos si el DTO de recolección fue enviado (no es null)
+        val direccionRecoleccionEntity: Direccion? = request.direccionRecoleccion?.let { dto ->
+            findOrCreateDireccion(
+                Direccion(
+                    direccionCompleta = dto.direccionCompleta,
+                    ciudad = dto.ciudad,
+                    latitud = dto.latitud,
+                    longitud = dto.longitud,
+                    pisoApto = dto.pisoApto,
+                    notasEntrega = dto.notasEntrega
+                )
+            )
+        }
+
+        // 4. Guía y Paquete (Creación de entidades transaccionales)
         val trackingCode = UUID.randomUUID().toString().substring(0, 10).uppercase()
         val nuevaGuia = Guia(
             numeroGuia = trackingCode.substring(0, 8),
@@ -79,19 +109,14 @@ class SolicitudService(
             contenido = request.paquete.contenido,
         )
 
-        // 4. Sucursal (código existente)
-        val sucursal = sucursalRepository.findById(request.sucursalId)
-            .orElseThrow { ResourceNotFoundException("Sucursal con ID ${request.sucursalId} no encontrada") }
-
         // 5. Crear la Solicitud COMPLETA
         val nuevaSolicitud = Solicitud(
             client = client,
             remitente = remitente,
             receptor = receptor,
             sucursal = sucursal,
-            // 🚨 Asignamos explícitamente los dos nuevos campos de dirección
-            direccionRecoleccion = nuevaDireccionRecoleccion, // Asignado a null
-            direccionEntrega = nuevaDireccionEntrega, // Asignado al valor obligatorio
+            direccionRecoleccion = direccionRecoleccionEntity,
+            direccionEntrega = direccionEntregaEntity,
             paquete = paquete,
             guia = nuevaGuia,
             fechaRecoleccion = request.fechaRecoleccion,
@@ -101,6 +126,53 @@ class SolicitudService(
 
         return solicitudRepository.save(nuevaSolicitud)
     }
+
+    /**
+     * 👥 Lógica auxiliar para buscar un [Cliente] por su documento o crearlo si no existe.
+     * Utiliza la combinación de [tipoId] y [numeroId] para la búsqueda.
+     *
+     * @param clienteRequest DTO con los datos del Cliente (Remitente o Receptor).
+     * @return La entidad [Cliente] existente o recién creada.
+     * @throws IllegalArgumentException Si el número de documento ([numeroId]) es nulo en el DTO.
+     */
+    private fun obtenerOCrearCliente(clienteRequest: ClienteRequest): Cliente {
+        val numeroId = clienteRequest.numeroId ?: throw IllegalArgumentException("Número de documento es obligatorio")
+
+        // Intenta buscar el cliente por la combinación de tipo y número de ID
+        val existente = clienteRepository.findByTipoIdAndNumeroId(
+            clienteRequest.tipoId ?: "",
+            numeroId
+        )
+
+        // Si existe, lo retorna; si no existe, lo crea y lo guarda.
+        return existente ?: clienteRepository.save(
+            Cliente(
+                nombre = clienteRequest.nombre,
+                tipoId = clienteRequest.tipoId,
+                numeroId = numeroId,
+                telefono = clienteRequest.telefono,
+                codigoPais = clienteRequest.codigoPais
+            )
+        )
+    }
+
+    /**
+     * 📍 Busca una [Direccion] existente por su dirección completa y ciudad. Si no existe, la crea y la persiste.
+     * Este método asegura que no se creen entradas duplicadas en la tabla de direcciones.
+     *
+     * @param dir La entidad [Direccion] a buscar/crear (con datos temporales, sin ID).
+     * @return La entidad [Direccion] existente o recién creada.
+     */
+    fun findOrCreateDireccion(dir: Direccion): Direccion {
+        val existing = direccionRepository.findByDireccionCompletaAndCiudad(
+            dir.direccionCompleta,
+            dir.ciudad
+        )
+        // Solo guardamos si no existe, si existe devolvemos el existente (evita duplicados)
+        return existing ?: direccionRepository.save(dir)
+    }
+
+    // --- Funciones de Consulta y Actualización ---
 
     /**
      * 📄 Genera un documento PDF para la solicitud de envío, utilizando la clase auxiliar [PdfGenerator].
@@ -123,34 +195,6 @@ class SolicitudService(
             direccion = solicitud.direccionEntrega.direccionCompleta,
             fechaRecoleccion = solicitud.fechaRecoleccion,
             estado = solicitud.estado.name
-        )
-    }
-
-    /**
-     * 👥 Lógica auxiliar para buscar un [Cliente] por su documento o crearlo si no existe.
-     *
-     * @param clienteRequest DTO con los datos del Cliente (Remitente o Receptor).
-     * @return La entidad [Cliente] existente o recién creada.
-     * @throws IllegalArgumentException Si el número de documento es nulo.
-     */
-    private fun obtenerOCrearCliente(clienteRequest: ClienteRequest): Cliente {
-        val numeroId = clienteRequest.numeroId ?: throw IllegalArgumentException("Número de documento es obligatorio")
-
-        // Intenta buscar el cliente por la combinación de tipo y número de ID
-        val existente = clienteRepository.findByTipoIdAndNumeroId(
-            clienteRequest.tipoId ?: "",
-            numeroId
-        )
-
-        // Si existe, lo retorna; si no existe, lo crea y lo guarda.
-        return existente ?: clienteRepository.save(
-            Cliente(
-                nombre = clienteRequest.nombre,
-                tipoId = clienteRequest.tipoId,
-                numeroId = numeroId,
-                telefono = clienteRequest.telefono,
-                codigoPais = clienteRequest.codigoPais
-            )
         )
     }
 
@@ -190,23 +234,7 @@ class SolicitudService(
     }
 
     /**
-     * 📍 Busca una [Direccion] existente por su dirección completa y ciudad. Si no existe, la crea.
-     *
-     * @param dir La entidad [Direccion] a buscar/crear.
-     * @return La entidad [Direccion] existente o recién creada.
-     */
-    fun findOrCreateDireccion(dir: Direccion): Direccion {
-        val existing = direccionRepository.findByDireccionCompletaAndCiudad(
-            dir.direccionCompleta,
-            dir.ciudad
-        )
-        return existing ?: direccionRepository.save(dir)
-    }
-
-    /**
      * 🔎 Recupera una [Solicitud] de envío utilizando el número de rastreo (trackingNumber) de su guía.
-     *
-     * Utiliza el método del repositorio que navega a través de la relación de la Guía.
      *
      * @param trackingNumber El código de guía único.
      * @return La entidad [Solicitud] encontrada.
