@@ -27,7 +27,7 @@ interface SucursalRepository : JpaRepository<Sucursal, Long> {
      * @param ciudad El nombre de la ciudad por la cual se desea filtrar.
      * @return Una lista de entidades [Sucursal] localizadas en la ciudad dada.
      */
-    fun findAllByCiudad(ciudad: String): List<Sucursal>
+    fun findAllByDireccion_Ciudad(ciudad: String): List<Sucursal>
 
     /**
      * Verifica la existencia de una sucursal utilizando su nombre como criterio.

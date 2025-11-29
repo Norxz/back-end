@@ -212,6 +212,7 @@ class SolicitudService(
      * @return La entidad [Solicitud] encontrada.
      * @throws ResourceNotFoundException si no se encuentra la solicitud con el trackingNumber dado.
      */
+    @Transactional
     fun getSolicitudByTrackingNumber(trackingNumber: String): Solicitud {
         return solicitudRepository.findByGuia_TrackingNumber(trackingNumber)
             .orElseThrow {
