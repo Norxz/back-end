@@ -23,11 +23,10 @@ class SolicitudController(
     private val asignacionService: AsignacionService
 ) {
 
+// --- CREACIÓN ---
+
     /**
      * Crea una nueva solicitud.
-     *
-     * @param request DTO con los datos de la solicitud
-     * @return [ResponseEntity] con la nueva solicitud creada o error
      */
     @PostMapping
     fun crearSolicitud(@RequestBody request: SolicitudRequest): ResponseEntity<*> {
@@ -40,6 +39,22 @@ class SolicitudController(
         } catch (e: Exception) {
             ResponseEntity("Error al crear la solicitud: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
         }
+    }
+
+// --- CONSULTA GENERAL ---
+
+    /**
+     * Obtiene todas las solicitudes del sistema (útil para administración o depuración).
+     *
+     * Mapea a: GET /api/v1/solicitudes
+     * @return Lista de [SolicitudResponse]
+     */
+    @GetMapping
+    fun listarTodasLasSolicitudes(): ResponseEntity<List<SolicitudResponse>> {
+        // Asumiendo que existe un método 'listarTodas()' en SolicitudService
+        val solicitudes: List<Solicitud> = solicitudService.listarTodas()
+        val responseList = solicitudes.map { SolicitudResponse(it) }
+        return ResponseEntity(responseList, HttpStatus.OK)
     }
 
     /**
@@ -59,9 +74,6 @@ class SolicitudController(
      * Obtiene una solicitud por su número de rastreo (trackingNumber) de la guía.
      *
      * Mapea a: GET /api/v1/solicitudes/tracking/{trackingNumber}
-     *
-     * @param trackingNumber Número de guía único para el rastreo.
-     * @return [ResponseEntity] con la solicitud encontrada o un error 404.
      */
     @GetMapping("/tracking/{trackingNumber}")
     fun getSolicitudByTrackingNumber(@PathVariable trackingNumber: String): ResponseEntity<*> {
@@ -70,7 +82,6 @@ class SolicitudController(
             val response = SolicitudResponse(solicitud)
             ResponseEntity(response, HttpStatus.OK)
         } catch (e: ResourceNotFoundException) {
-            // Devuelve 404 si la solicitud no se encuentra
             ResponseEntity(e.message, HttpStatus.NOT_FOUND)
         } catch (e: Exception) {
             ResponseEntity("Error interno al buscar la solicitud: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
@@ -78,12 +89,58 @@ class SolicitudController(
     }
 
     /**
+     * Genera un PDF de la solicitud.
+     */
+    @GetMapping("/{id}/pdf")
+    fun generarPdf(@PathVariable id: Long): ResponseEntity<ByteArray> {
+        return try {
+            val pdf = solicitudService.generarPdfDeSolicitud(id)
+            ResponseEntity(pdf, HttpStatus.OK)
+        } catch (e: ResourceNotFoundException) {
+            ResponseEntity(null, HttpStatus.NOT_FOUND)
+        } catch (e: Exception) {
+            ResponseEntity(null, HttpStatus.INTERNAL_SERVER_ERROR)
+        }
+    }
+
+// --- CONSULTA POR SUCURSAL (Faltantes) ---
+
+    /**
+     * 🟢 **CORRECCIÓN:** Obtiene las solicitudes **PENDIENTES** de una sucursal específica.
+     *
+     * Mapea a: GET /api/v1/solicitudes/branch/{sucursalId} ⬅️ **Ruta que estaba dando 404**
+     *
+     * @param sucursalId ID de la sucursal.
+     * @return Lista de [SolicitudResponse] en estado PENDIENTE.
+     */
+    @GetMapping("/branch/{sucursalId}")
+    fun getSolicitudesPendingBySucursal(@PathVariable sucursalId: Long): ResponseEntity<List<SolicitudResponse>> {
+        // Asumiendo que esta función existe en SolicitudService y filtra por PENDIENTE
+        val solicitudes: List<Solicitud> = solicitudService.getPendingBySucursalId(sucursalId)
+        val responseList = solicitudes.map { SolicitudResponse(it) }
+        return ResponseEntity(responseList, HttpStatus.OK)
+    }
+
+    /**
+     * 🟢 **ADICIONAL:** Obtiene las solicitudes **ASIGNADAS** de una sucursal específica.
+     *
+     * Mapea a: GET /api/v1/solicitudes/branch/{sucursalId}/assigned
+     *
+     * @param sucursalId ID de la sucursal.
+     * @return Lista de [SolicitudResponse] en estado ASIGNADA o en tránsito.
+     */
+    @GetMapping("/branch/{sucursalId}/assigned")
+    fun getSolicitudesAssignedBySucursal(@PathVariable sucursalId: Long): ResponseEntity<List<SolicitudResponse>> {
+        // Asumiendo que esta función existe en SolicitudService y filtra por ASIGNADA
+        val solicitudes: List<Solicitud> = solicitudService.getAssignedBySucursalId(sucursalId)
+        val responseList = solicitudes.map { SolicitudResponse(it) }
+        return ResponseEntity(responseList, HttpStatus.OK)
+    }
+
+// --- ACTUALIZACIÓN Y ASIGNACIÓN ---
+
+    /**
      * Actualiza el estado de una solicitud.
-     *
-     * Usado para operaciones como Cancelar o Confirmar Entrega.
-     *
-     * @param solicitudId ID de la solicitud
-     * @param estadoUpdate Mapa que debe contener el campo "estado"
      */
     @PutMapping("/{solicitudId}/estado")
     fun updateEstado(
@@ -107,29 +164,9 @@ class SolicitudController(
     }
 
     /**
-     * Genera un PDF de la solicitud.
-     *
-     * @param id ID de la solicitud
-     * @return PDF en bytes o error si no se encuentra la solicitud
-     */
-    @GetMapping("/{id}/pdf")
-    fun generarPdf(@PathVariable id: Long): ResponseEntity<ByteArray> {
-        return try {
-            val pdf = solicitudService.generarPdfDeSolicitud(id)
-            ResponseEntity(pdf, HttpStatus.OK)
-        } catch (e: ResourceNotFoundException) {
-            ResponseEntity(null, HttpStatus.NOT_FOUND)
-        } catch (e: Exception) {
-            ResponseEntity(null, HttpStatus.INTERNAL_SERVER_ERROR)
-        }
-    }
-
-    /**
      * Asigna un gestor a una solicitud.
      *
-     * @param solicitudId ID de la solicitud
-     * @param gestorId ID del gestor
-     * @return [SolicitudResponse] de la solicitud actualizada
+     * Nota: La lógica de servicio (AsignacionService) fue corregida anteriormente para cambiar el estado a "ASIGNADA".
      */
     @PostMapping("/{solicitudId}/asignar-gestor/{gestorId}")
     fun asignarGestor(
@@ -148,13 +185,6 @@ class SolicitudController(
 
     /**
      * Asigna un conductor a una solicitud.
-     *
-     * El gestor que realiza la asignación se pasa como parámetro.
-     *
-     * @param solicitudId ID de la solicitud
-     * @param gestorId ID del gestor
-     * @param conductorId ID del conductor
-     * @return [SolicitudResponse] de la solicitud actualizada
      */
     @PostMapping("/{solicitudId}/asignar-conductor")
     fun asignarConductor(
@@ -170,46 +200,5 @@ class SolicitudController(
         } catch (e: Exception) {
             ResponseEntity("Error al asignar conductor: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
         }
-    }
-
-    /**
-     * Obtiene TODAS las solicitudes del sistema (útil para administración o depuración).
-     *
-     * @return Lista de [SolicitudResponse]
-     */
-    @GetMapping // Mapea a: GET /api/v1/solicitudes
-    fun listarTodasLasSolicitudes(): ResponseEntity<List<SolicitudResponse>> {
-        // Asumiendo que existe un método 'listarTodas()' en SolicitudService
-        val solicitudes: List<Solicitud> = solicitudService.listarTodas()
-        val responseList = solicitudes.map { SolicitudResponse(it) }
-        return ResponseEntity(responseList, HttpStatus.OK)
-    }
-
-    /**
-     * Obtiene las solicitudes PENDIENTES de una sucursal específica.
-     * Mapea a: GET /api/v1/solicitudes/branch/{sucursalId}
-     *
-     * @param sucursalId ID de la sucursal.
-     * @return Lista de [SolicitudResponse] en estado PENDIENTE.
-     */
-    @GetMapping("/branch/{sucursalId}")
-    fun getSolicitudesPendingBySucursal(@PathVariable sucursalId: Long): ResponseEntity<List<SolicitudResponse>> {
-        val solicitudes: List<Solicitud> = solicitudService.getPendingBySucursalId(sucursalId)
-        val responseList = solicitudes.map { SolicitudResponse(it) }
-        return ResponseEntity(responseList, HttpStatus.OK)
-    }
-
-    /**
-     * Obtiene las solicitudes ASIGNADAS (a gestor o conductor) de una sucursal específica.
-     * Mapea a: GET /api/v1/solicitudes/branch/{sucursalId}/assigned
-     *
-     * @param sucursalId ID de la sucursal.
-     * @return Lista de [SolicitudResponse] en estado ASIGNADA o en tránsito.
-     */
-    @GetMapping("/branch/{sucursalId}/assigned")
-    fun getSolicitudesAssignedBySucursal(@PathVariable sucursalId: Long): ResponseEntity<List<SolicitudResponse>> {
-        val solicitudes: List<Solicitud> = solicitudService.getAssignedBySucursalId(sucursalId)
-        val responseList = solicitudes.map { SolicitudResponse(it) }
-        return ResponseEntity(responseList, HttpStatus.OK)
     }
 }

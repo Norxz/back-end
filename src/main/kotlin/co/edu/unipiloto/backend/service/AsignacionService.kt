@@ -2,6 +2,7 @@ package co.edu.unipiloto.backend.service
 
 import co.edu.unipiloto.backend.exception.ResourceNotFoundException
 import co.edu.unipiloto.backend.model.Solicitud
+import co.edu.unipiloto.backend.model.enums.EstadoSolicitud
 import co.edu.unipiloto.backend.repository.SolicitudRepository
 import co.edu.unipiloto.backend.repository.UserRepository
 import org.springframework.stereotype.Service
@@ -16,17 +17,16 @@ import org.springframework.transaction.annotation.Transactional
  */
 @Service
 class AsignacionService(
-    private val userRepository: UserRepository, // Inyección del repositorio de Usuarios (para buscar gestores/conductores)
-    private val solicitudRepository: SolicitudRepository // Inyección del repositorio de Solicitudes
+    private val userRepository: UserRepository,
+    private val solicitudRepository: SolicitudRepository
 ) {
 
     /**
      * 👤 Asigna un Gestor específico a una Solicitud de envío.
      *
-     * 1. Busca la [Solicitud] y el [Gestor] por sus respectivos IDs. Si alguno no existe,
-     * lanza una excepción [ResourceNotFoundException].
-     * 2. Establece la relación, asignando el objeto Gestor a la propiedad 'gestor' de la Solicitud.
-     * 3. Guarda la Solicitud actualizada en la base de datos dentro de una transacción.
+     * 1. Busca la [Solicitud] y el [Gestor] por sus respectivos IDs.
+     * 2. 🛑 Establece el Gestor y cambia el estado a "ASIGNADA".
+     * 3. Guarda la Solicitud actualizada.
      *
      * @param solicitudId El ID de la Solicitud que necesita ser asignada.
      * @param gestorId El ID del Gestor que será responsable de la solicitud.
@@ -41,6 +41,8 @@ class AsignacionService(
         val gestor = userRepository.findById(gestorId)
             .orElseThrow { ResourceNotFoundException("Gestor con ID $gestorId no encontrado") }
 
+        solicitud.estado = EstadoSolicitud.ASIGNADA
+
         // Asigna la relación
         solicitud.gestor = gestor
 
@@ -51,15 +53,15 @@ class AsignacionService(
      * 🚚 Asigna un Conductor y simultáneamente registra al Gestor que realiza dicha asignación
      * a una Solicitud específica.
      *
-     * 1. Busca la [Solicitud], el [Gestor] y el [Conductor] por sus respectivos IDs.
-     * 2. Asigna las entidades Conductor y Gestor a las propiedades correspondientes de la Solicitud.
-     * 3. Persiste los cambios de la Solicitud en la base de datos.
+     * 1. Busca la [Solicitud], el [Gestor] y el [Conductor].
+     * 2. 🛑 Establece las relaciones y cambia el estado a "ASIGNADA".
+     * 3. Persiste los cambios de la Solicitud.
      *
      * @param solicitudId El ID de la Solicitud.
      * @param gestorId El ID del Gestor que realiza la acción de asignación.
      * @param conductorId El ID del Conductor que transportará la solicitud.
      * @return La entidad [Solicitud] actualizada con el conductor y gestor asignados.
-     * @throws ResourceNotFoundException Si alguna de las entidades (Solicitud, Gestor o Conductor) no es encontrada.
+     * @throws ResourceNotFoundException Si alguna de las entidades no es encontrada.
      */
     @Transactional
     fun asignarConductorASolicitud(
@@ -75,6 +77,8 @@ class AsignacionService(
 
         val conductor = userRepository.findById(conductorId)
             .orElseThrow { ResourceNotFoundException("Conductor con ID $conductorId no encontrado") }
+
+        solicitud.estado = EstadoSolicitud.ASIGNADA
 
         // Asigna el conductor y registra al gestor que hizo la asignación
         solicitud.conductor = conductor
