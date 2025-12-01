@@ -126,4 +126,6 @@ interface SolicitudRepository : JpaRepository<Solicitud, Long> {
      * @return Lista de Solicitudes.
      */
     fun findBySucursalIdAndEstado(sucursalId: Long, estado: EstadoSolicitud): List<Solicitud>
+
+    fun findByConductor_Id(conductorId: Long): List<Solicitud>
 }

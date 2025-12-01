@@ -286,4 +286,22 @@ class SolicitudService(
             EstadoSolicitud.ASIGNADA // <--- Tipo Enum
         )
     }
+
+    /**
+     * Obtiene todas las solicitudes asignadas (rutas activas) a un conductor específico.
+     * @param driverId El ID del conductor.
+     * @return Una lista de objetos Solicitud.
+     */
+    fun getRoutesByDriverId(driverId: Long): List<Solicitud> {
+        // 🚨 CORRECCIÓN: Usar findByConductor_Id, que ahora existe en el repositorio
+        val solicitudesAsignadas = solicitudRepository.findByConductor_Id(driverId)
+
+        val estadosFinales = setOf(EstadoSolicitud.ENTREGADA, EstadoSolicitud.CANCELADA)
+
+        return solicitudesAsignadas
+            // Filtramos las que NO estén en un estado terminal
+            .filter { solicitud ->
+                !estadosFinales.contains(solicitud.estado)
+            }
+    }
 }

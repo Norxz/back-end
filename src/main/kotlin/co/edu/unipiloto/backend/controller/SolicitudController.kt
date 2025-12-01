@@ -227,4 +227,28 @@ class SolicitudController(
             ResponseEntity("Error al asignar conductor: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
+
+    /**
+     * Obtiene todas las solicitudes de envío ASIGNADAS a un conductor específico.
+     *
+     * Mapea a: GET /api/v1/solicitudes/driver/{driverId}/routes
+     * ESTE ES EL ENDPOINT QUE BUSCA LA APP ANDROID.
+     *
+     * @param driverId ID del conductor/recolector.
+     * @return Lista de [SolicitudResponse] (Generalmente filtradas por estado 'ASIGNADA' o 'EN_RUTA').
+     */
+    @GetMapping("/driver/{driverId}/routes")
+    fun getRoutesByDriverId(@PathVariable driverId: Long): ResponseEntity<List<SolicitudResponse>> {
+        return try {
+            // Asumiendo que existe un método en SolicitudService que trae las solicitudes
+            // que están en curso (ASIGNADA, EN_RUTA, EN_DISTRIBUCION, etc.) para ese conductor.
+            val solicitudes: List<Solicitud> = solicitudService.getRoutesByDriverId(driverId)
+            val responseList = solicitudes.map { SolicitudResponse(it) }
+
+            // Retorna 200 OK, incluso si la lista está vacía (cero rutas), no un 404.
+            ResponseEntity(responseList, HttpStatus.OK)
+        } catch (e: Exception) {
+            ResponseEntity(emptyList(), HttpStatus.INTERNAL_SERVER_ERROR) // Manejo de errores
+        }
+    }
 }
