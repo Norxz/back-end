@@ -77,4 +77,22 @@ class UserService(
         userRepository.deleteById(userId)
     }
 
+
+    /**
+     * Busca el primer conductor (User con role=CONDUCTOR)
+     * que esté disponible para trabajar en una sucursal específica (isActive=true).
+     * @param sucursalId ID de la sucursal.
+     * @return El [User] encontrado, o null si no hay conductores disponibles.
+     */
+    fun findAvailableDriverBySucursal(sucursalId: Long): User? {
+        // ✅ CORRECCIÓN: Usar AndIsActive en lugar de AndEstado.
+        // Asumiendo que "CONDUCTOR" es el valor String correcto para el Enum/Role.
+        return userRepository.findFirstBySucursalIdAndRoleAndIsActive(
+            sucursalId,
+            // Asumo que el rol "CONDUCTOR" es un String en el repositorio.
+            // Si usas Enum, deberías llamar a it.role.name en el filtro o usar el valor del Enum.
+            "CONDUCTOR",
+            true // Buscamos un conductor que esté Activo/Disponible
+        )
+    }
 }

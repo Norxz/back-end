@@ -6,6 +6,10 @@ import co.edu.unipiloto.backend.model.Sucursal
 import co.edu.unipiloto.backend.repository.SucursalRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * 🏢 Servicio encargado de la lógica de negocio para la gestión de la entidad [Sucursal] (Oficina o Punto de Servicio).
@@ -13,8 +17,9 @@ import org.springframework.transaction.annotation.Transactional
  */
 @Service
 class SucursalService(
-    private val sucursalRepository: SucursalRepository // Inyección del repositorio de Sucursales
+    private val sucursalRepository: SucursalRepository
 ) {
+    private val EARTH_RADIUS_KM = 6371.0
 
     /**
      * 📋 Recupera una lista de todas las sucursales registradas en el sistema.
@@ -124,5 +129,59 @@ class SucursalService(
             return true
         }
         return false
+    }
+
+    /**
+     * Calcula la distancia de gran círculo (en km) entre dos pares de coordenadas
+     * (latitud/longitud) utilizando la fórmula de Haversine.
+     */
+    private fun calculateHaversineDistance(
+        lat1: Double, lon1: Double,
+        lat2: Double, lon2: Double
+    ): Double {
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val lat1Rad = Math.toRadians(lat1)
+        val lat2Rad = Math.toRadians(lat2)
+
+        val a = sin(dLat / 2) * sin(dLat / 2) +
+                sin(dLon / 2) * sin(dLon / 2) * cos(lat1Rad) * cos(lat2Rad)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+        return EARTH_RADIUS_KM * c
+    }
+
+    /**
+     * Busca el ID de la sucursal más cercana a un punto de recolección dado.
+     *
+     * 1. Recupera todas las sucursales.
+     * 2. Calcula la distancia a cada sucursal usando Haversine.
+     * 3. Retorna el ID de la sucursal con la distancia mínima.
+     *
+     * @param lat Latitud del punto de recolección.
+     * @param lon Longitud del punto de recolección.
+     * @return El [Long] ID de la sucursal más cercana, o null si no hay sucursales.
+     */
+    fun findNearestBranchId(lat: Double, lon: Double): Long? {
+        val todasSucursales = sucursalRepository.findAll()
+
+        // Si no hay sucursales, no podemos buscar la más cercana
+        if (todasSucursales.isEmpty()) {
+            return null
+        }
+
+        // Encuentra la sucursal que minimiza la distancia.
+        // minByOrNull retorna el elemento (Sucursal) que produce el valor mínimo
+        // para la función lambda proporcionada.
+        val nearestSucursal = todasSucursales.minByOrNull { sucursal ->
+            calculateHaversineDistance(
+                lat, lon,
+                sucursal.direccion?.latitud ?: Double.MAX_VALUE, // Usar latitud de sucursal
+                sucursal.direccion?.longitud ?: Double.MAX_VALUE // Usar longitud de sucursal
+            )
+        }
+
+        // Retorna el ID de la sucursal más cercana
+        return nearestSucursal?.id
     }
 }

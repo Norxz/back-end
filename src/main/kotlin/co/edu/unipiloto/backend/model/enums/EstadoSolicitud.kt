@@ -12,12 +12,24 @@ package co.edu.unipiloto.backend.model.enums
  * - [CANCELADA]: La solicitud fue cancelada antes de su entrega.
  */
 enum class EstadoSolicitud {
+    /** Creada, pendiente de ser asignada a un gestor o ruta. */
     PENDIENTE,
+
+    /** Asignada a un gestor o conductor; esperando el inicio de la operación. */
     ASIGNADA,
-    EN_RECOLECCION,
-    RECOLECTADA,
+
+    /** El conductor está en camino para recoger el paquete del remitente. */
+    EN_RUTA_RECOLECCION,
+
+    /** El paquete ha sido recogido y está en tránsito hacia el centro de distribución/ruta. */
     EN_DISTRIBUCION,
-    EN_RUTA,
+
+    /** El paquete salió del centro de distribución y está en ruta final hacia el destinatario. */
+    EN_RUTA_REPARTO,
+
+    /** Finalizada exitosamente. */
     ENTREGADA,
+
+    /** Finalizada sin éxito (cancelada por cliente o por logística). */
     CANCELADA
 }

@@ -171,4 +171,45 @@ class SolicitudController(
             ResponseEntity("Error al asignar conductor: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
+
+    /**
+     * Obtiene TODAS las solicitudes del sistema (útil para administración o depuración).
+     *
+     * @return Lista de [SolicitudResponse]
+     */
+    @GetMapping // Mapea a: GET /api/v1/solicitudes
+    fun listarTodasLasSolicitudes(): ResponseEntity<List<SolicitudResponse>> {
+        // Asumiendo que existe un método 'listarTodas()' en SolicitudService
+        val solicitudes: List<Solicitud> = solicitudService.listarTodas()
+        val responseList = solicitudes.map { SolicitudResponse(it) }
+        return ResponseEntity(responseList, HttpStatus.OK)
+    }
+
+    /**
+     * Obtiene las solicitudes PENDIENTES de una sucursal específica.
+     * Mapea a: GET /api/v1/solicitudes/branch/{sucursalId}
+     *
+     * @param sucursalId ID de la sucursal.
+     * @return Lista de [SolicitudResponse] en estado PENDIENTE.
+     */
+    @GetMapping("/branch/{sucursalId}")
+    fun getSolicitudesPendingBySucursal(@PathVariable sucursalId: Long): ResponseEntity<List<SolicitudResponse>> {
+        val solicitudes: List<Solicitud> = solicitudService.getPendingBySucursalId(sucursalId)
+        val responseList = solicitudes.map { SolicitudResponse(it) }
+        return ResponseEntity(responseList, HttpStatus.OK)
+    }
+
+    /**
+     * Obtiene las solicitudes ASIGNADAS (a gestor o conductor) de una sucursal específica.
+     * Mapea a: GET /api/v1/solicitudes/branch/{sucursalId}/assigned
+     *
+     * @param sucursalId ID de la sucursal.
+     * @return Lista de [SolicitudResponse] en estado ASIGNADA o en tránsito.
+     */
+    @GetMapping("/branch/{sucursalId}/assigned")
+    fun getSolicitudesAssignedBySucursal(@PathVariable sucursalId: Long): ResponseEntity<List<SolicitudResponse>> {
+        val solicitudes: List<Solicitud> = solicitudService.getAssignedBySucursalId(sucursalId)
+        val responseList = solicitudes.map { SolicitudResponse(it) }
+        return ResponseEntity(responseList, HttpStatus.OK)
+    }
 }

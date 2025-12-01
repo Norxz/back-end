@@ -1,10 +1,12 @@
 package co.edu.unipiloto.backend.controller
 
 import co.edu.unipiloto.backend.dto.UserResponse
+import co.edu.unipiloto.backend.exception.ResourceNotFoundException
 import co.edu.unipiloto.backend.model.User
 import co.edu.unipiloto.backend.model.enums.Role
 import co.edu.unipiloto.backend.repository.UserRepository
 import co.edu.unipiloto.backend.repository.SucursalRepository
+import co.edu.unipiloto.backend.service.UserService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -16,7 +18,8 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/api/v1/users")
 class UserController(
     private val userRepository: UserRepository,
-    private val sucursalRepository: SucursalRepository
+    private val sucursalRepository: SucursalRepository,
+    private val userService: UserService
 ) {
 
     // --------------------------------------
@@ -126,5 +129,21 @@ class UserController(
         val user = userRepository.findById(userId).orElse(null) ?: return ResponseEntity.notFound().build()
         val actualizado = user.copy(isActive = false)
         return ResponseEntity.ok(UserResponse(userRepository.save(actualizado)))
+    }
+
+    /**
+     * Busca el primer conductor disponible asignado a una sucursal específica.
+     * Mapea a: GET /api/v1/users/drivers/available?sucursalId=X
+     */
+    @GetMapping("/drivers/available") // ⬅️ SIN {ID} EN LA RUTA
+    fun getAvailableDriverBySucursal(
+        @RequestParam sucursalId: Long // ⬅️ USAMOS @RequestParam para el query parameter
+    ): ResponseEntity<UserResponse> {
+        // Asumiendo que existe un método en UserService
+        val conductor = userService.findAvailableDriverBySucursal(sucursalId)
+            ?: throw ResourceNotFoundException("No se encontró un conductor disponible para la sucursal ID $sucursalId")
+
+        // Retornar el DTO de respuesta del User/Conductor
+        return ResponseEntity.ok(UserResponse(conductor))
     }
 }

@@ -118,4 +118,12 @@ interface SolicitudRepository : JpaRepository<Solicitud, Long> {
      * @return Un [Optional] que contiene la entidad [Solicitud] encontrada, o vacío.
      */
     fun findByGuia_TrackingNumber(trackingNumber: String): Optional<Solicitud>
+
+    /**
+     * Busca solicitudes por el ID de la sucursal asociada y un estado específico.
+     * @param sucursalId El ID de la sucursal (propiedad en la entidad Solicitud o sucursal.id).
+     * @param estado El estado de la solicitud (String o Enum.name).
+     * @return Lista de Solicitudes.
+     */
+    fun findBySucursalIdAndEstado(sucursalId: Long, estado: EstadoSolicitud): List<Solicitud>
 }

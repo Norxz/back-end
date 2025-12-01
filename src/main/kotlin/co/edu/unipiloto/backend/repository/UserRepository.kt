@@ -69,9 +69,11 @@ interface UserRepository : JpaRepository<User, Long> {
      * @param isActive Indica si el usuario debe estar activo (por defecto, true).
      * @return Una lista de entidades [User] que cumplen con todos los criterios.
      */
-    fun findBySucursalIdAndRoleAndIsActive(sucursalId: Long, role: String, isActive: Boolean = true): List<User>
-
-    // --- Consultas de Validación ---
+    fun findFirstBySucursalIdAndRoleAndIsActive(
+        sucursalId: Long,
+        role: String,
+        isActive: Boolean
+    ): User?
 
     /**
      * Verifica si ya existe un usuario registrado con la dirección de correo electrónico proporcionada.

@@ -248,4 +248,42 @@ class SolicitudService(
                 ResourceNotFoundException("Solicitud con Tracking Number '$trackingNumber' no encontrada.")
             }
     }
+
+    /**
+     * 📋 Obtiene una lista de todas las solicitudes registradas en el sistema.
+     * Esto fue añadido para soportar la ruta GET /api/v1/solicitudes/all.
+     *
+     * @return Una [List] de todas las entidades [Solicitud].
+     */
+    fun listarTodas(): List<Solicitud> {
+        // Asumiendo que tienes una SolicitudRepository inyectada
+        return solicitudRepository.findAll()
+    }
+
+    /**
+     * Busca todas las solicitudes con estado PENDIENTE para una sucursal específica.
+     * @param sucursalId ID de la sucursal.
+     * @return Lista de Solicitudes.
+     */
+    fun getPendingBySucursalId(sucursalId: Long): List<Solicitud> {
+        // 🛑 CORRECCIÓN: Pasar el valor del ENUM (EstadoSolicitud.PENDIENTE) en lugar del String literal ("PENDIENTE").
+        return solicitudRepository.findBySucursalIdAndEstado(
+            sucursalId,
+            EstadoSolicitud.PENDIENTE // <--- Tipo Enum
+        )
+    }
+
+    /**
+     * Busca todas las solicitudes con estado ASIGNADA o en tránsito para una sucursal específica.
+     * @param sucursalId ID de la sucursal.
+     * @return Lista de Solicitudes.
+     */
+    fun getAssignedBySucursalId(sucursalId: Long): List<Solicitud> {
+        // Para simplificar, asumiremos que "ASIGNADA" es el estado correcto.
+        // 🛑 CORRECCIÓN: Pasar el valor del ENUM (EstadoSolicitud.ASIGNADA) en lugar del String literal ("ASIGNADA").
+        return solicitudRepository.findBySucursalIdAndEstado(
+            sucursalId,
+            EstadoSolicitud.ASIGNADA // <--- Tipo Enum
+        )
+    }
 }
