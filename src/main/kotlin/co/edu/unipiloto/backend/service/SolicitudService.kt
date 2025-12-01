@@ -4,12 +4,27 @@ import co.edu.unipiloto.backend.dto.ClienteRequest
 import co.edu.unipiloto.backend.dto.SolicitudRequest
 import co.edu.unipiloto.backend.exception.ResourceNotFoundException
 import co.edu.unipiloto.backend.model.*
+import co.edu.unipiloto.backend.model.enums.EstadoSolicitud
 import co.edu.unipiloto.backend.repository.*
 import co.edu.unipiloto.backend.utils.PdfGenerator
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
+import java.time.Instant
 
+/**
+ * 📨 Servicio de Spring (`@Service`) encargado de la lógica de negocio central para la gestión de [Solicitud]es de envío.
+ *
+ * Coordina la **creación** y **gestión** de múltiples entidades relacionadas ([Guia], [Direccion], [Paquete], [Cliente], [Sucursal])
+ * en una sola operación transaccional, garantizando la consistencia de los datos.
+ *
+ * @property solicitudRepository Repositorio para la entidad Solicitud.
+ * @property userRepository Repositorio para la entidad User (clientes, conductores, etc.).
+ * @property clienteRepository Repositorio para la entidad Cliente (remitentes, receptores).
+ * @property guiaRepository Repositorio para la entidad Guia.
+ * @property direccionRepository Repositorio para la entidad Direccion.
+ * @property sucursalRepository Repositorio para la entidad Sucursal.
+ */
 @Service
 class SolicitudService(
     private val solicitudRepository: SolicitudRepository,
@@ -18,41 +33,80 @@ class SolicitudService(
     private val guiaRepository: GuiaRepository,
     private val direccionRepository: DireccionRepository,
     private val sucursalRepository: SucursalRepository
-
 ) {
 
+    // -------------------------------------------------------------------------
+    // ## Creación de Solicitud (Transaccional)
+    // -------------------------------------------------------------------------
+
     /**
-     * Crea una nueva solicitud, incluyendo la generación de la Guía y la Dirección asociada.
-     * Esta operación es transaccional.
+     * 📝 Crea una nueva solicitud de envío a partir de los datos del DTO [SolicitudRequest].
+     *
+     * Esta operación es **transaccional** para asegurar la atomicidad en la creación de todas las entidades
+     * dependientes ([Cliente], [Direccion], [Guia], [Paquete]).
+     *
+     * **Flujo de Creación:**
+     * 1. Verifica la existencia de [User] (client) y [Sucursal].
+     * 2. Obtiene o crea las entidades [Cliente] para Remitente y Receptor.
+     * 3. Obtiene o crea las entidades [Direccion] para Recolección (si existe) y Entrega.
+     * 4. Crea [Paquete] y [Guia] con un código de rastreo único.
+     * 5. Crea la [Solicitud] con el estado inicial **PENDIENTE** y la persiste.
+     *
+     * @param request El DTO con todos los datos necesarios para la Solicitud.
+     * @return La entidad [Solicitud] recién creada y persistida.
+     * @throws ResourceNotFoundException Si el usuario creador (`clientId`) o la [Sucursal] no existen.
      */
     @Transactional
     fun crearSolicitud(request: SolicitudRequest): Solicitud {
 
-        // 1. Verificar cliente
+        // 1. Verificar existencia de entidades principales
         val client: User = userRepository.findById(request.clientId)
             .orElseThrow { ResourceNotFoundException("Cliente con ID ${request.clientId} no encontrado.") }
 
-        // 2. Remitente
+        val sucursal = sucursalRepository.findById(request.sucursalId)
+            .orElseThrow { ResourceNotFoundException("Sucursal con ID ${request.sucursalId} no encontrada") }
+
+        // 2. Obtener o crear Remitente/Receptor
         val remitente = obtenerOCrearCliente(request.remitente)
         val receptor = obtenerOCrearCliente(request.receptor)
 
-        // 2. Dirección
-        val nuevaDireccion = Direccion(
-            direccionCompleta = request.direccion.direccionCompleta,
-            ciudad = request.direccion.ciudad,
-            latitud = request.direccion.latitud,
-            longitud = request.direccion.longitud,
-            pisoApto = request.direccion.pisoApto,
-            notasEntrega = request.direccion.notasEntrega
-        )
+        // 3. Procesar Direcciones (Usando findOrCreateDireccion para evitar duplicados)
 
-        // 3. Guía
+        // Dirección de ENTREGA (Obligatoria)
+        val direccionEntregaEntity = request.direccionEntrega.let { dto ->
+            findOrCreateDireccion(
+                Direccion(
+                    direccionCompleta = dto.direccionCompleta,
+                    ciudad = dto.ciudad,
+                    latitud = dto.latitud,
+                    longitud = dto.longitud,
+                    pisoApto = dto.pisoApto,
+                    notasEntrega = dto.notasEntrega
+                )
+            )
+        }
+
+        // Dirección de RECOLECCIÓN (Opcional)
+        // Solo procesamos si el DTO de recolección fue enviado (no es null)
+        val direccionRecoleccionEntity: Direccion? = request.direccionRecoleccion?.let { dto ->
+            findOrCreateDireccion(
+                Direccion(
+                    direccionCompleta = dto.direccionCompleta,
+                    ciudad = dto.ciudad,
+                    latitud = dto.latitud,
+                    longitud = dto.longitud,
+                    pisoApto = dto.pisoApto,
+                    notasEntrega = dto.notasEntrega
+                )
+            )
+        }
+
+        // 4. Guía y Paquete (Creación de entidades transaccionales)
         val trackingCode = UUID.randomUUID().toString().substring(0, 10).uppercase()
         val nuevaGuia = Guia(
             numeroGuia = trackingCode.substring(0, 8),
             trackingNumber = trackingCode
         )
-
         val paquete = Paquete(
             peso = request.paquete.peso,
             alto = request.paquete.alto,
@@ -61,87 +115,205 @@ class SolicitudService(
             contenido = request.paquete.contenido,
         )
 
-        val sucursal = sucursalRepository.findById(request.sucursalId)
-            .orElseThrow { ResourceNotFoundException("Sucursal con ID ${request.sucursalId} no encontrada") }
-
-        // ⭐⭐ 4. Crear la Solicitud COMPLETA (con todos los campos)
+        // 5. Crear la Solicitud COMPLETA
         val nuevaSolicitud = Solicitud(
             client = client,
             remitente = remitente,
             receptor = receptor,
             sucursal = sucursal,
-            direccion = nuevaDireccion,
+            direccionRecoleccion = direccionRecoleccionEntity,
+            direccionEntrega = direccionEntregaEntity,
             paquete = paquete,
             guia = nuevaGuia,
             fechaRecoleccion = request.fechaRecoleccion,
             franjaHoraria = request.franjaHoraria,
-            estado = "PENDIENTE"
+            estado = EstadoSolicitud.PENDIENTE // Estado inicial de la Solicitud
         )
-
 
         return solicitudRepository.save(nuevaSolicitud)
     }
 
-    fun generarPdfDeSolicitud(id: Long): ByteArray {
-        val solicitud = solicitudRepository.findById(id)
-            .orElseThrow { ResourceNotFoundException("Solicitud con ID $id no encontrada.") }
-
-        return PdfGenerator.createGuidePdf(
-            id = solicitud.id!!,
-            remitente = solicitud.remitente.nombre,
-            receptor = solicitud.receptor.nombre,
-            numeroGuia = solicitud.guia.numeroGuia,
-            trackingNumber = solicitud.guia.trackingNumber,
-            direccion = solicitud.direccion.direccionCompleta,
-            fechaRecoleccion = solicitud.fechaRecoleccion,
-            estado = solicitud.estado
-        )
-    }
-
-
+    /**
+     * 👥 Lógica auxiliar para buscar un [Cliente] por su documento o crearlo si no existe.
+     * Utiliza la combinación de [tipoId] y [numeroId] para la búsqueda.
+     *
+     * @param clienteRequest DTO con los datos del Cliente (Remitente o Receptor).
+     * @return La entidad [Cliente] existente o recién creada.
+     * @throws IllegalArgumentException Si el número de documento ([numeroId]) es nulo en el DTO.
+     */
     private fun obtenerOCrearCliente(clienteRequest: ClienteRequest): Cliente {
-        // Intenta buscar por tipoId + numeroId
+        val numeroId = clienteRequest.numeroId ?: throw IllegalArgumentException("Número de documento es obligatorio")
+
+        // Intenta buscar el cliente por la combinación de tipo y número de ID
         val existente = clienteRepository.findByTipoIdAndNumeroId(
             clienteRequest.tipoId ?: "",
-            clienteRequest.numeroId ?: ""
+            numeroId
         )
+
+        // Si existe, lo retorna; si no existe, lo crea y lo guarda.
         return existente ?: clienteRepository.save(
             Cliente(
                 nombre = clienteRequest.nombre,
                 tipoId = clienteRequest.tipoId,
-                numeroId = clienteRequest.numeroId,
+                numeroId = numeroId,
                 telefono = clienteRequest.telefono,
                 codigoPais = clienteRequest.codigoPais
             )
         )
     }
 
+    /**
+     * 📍 Busca una [Direccion] existente por su dirección completa y ciudad. Si no existe, la crea y la persiste.
+     *
+     * Este método asegura que no se creen entradas duplicadas en la tabla de direcciones, optimizando el uso de la base de datos.
+     *
+     * @param dir La entidad [Direccion] a buscar/crear (con datos temporales, sin ID).
+     * @return La entidad [Direccion] existente o recién creada.
+     */
+    fun findOrCreateDireccion(dir: Direccion): Direccion {
+        val existing = direccionRepository.findByDireccionCompletaAndCiudad(
+            dir.direccionCompleta,
+            dir.ciudad
+        )
+        // Solo guardamos si no existe, si existe devolvemos el existente (evita duplicados)
+        return existing ?: direccionRepository.save(dir)
+    }
+
+    // -------------------------------------------------------------------------
+    // ## Funciones de Consulta y Actualización
+    // -------------------------------------------------------------------------
+
+    /**
+     * 📄 Genera un documento PDF para la solicitud de envío, utilizando la clase auxiliar [PdfGenerator].
+     *
+     * @param id El ID de la Solicitud.
+     * @return Un array de Bytes que representa el archivo PDF generado.
+     * @throws ResourceNotFoundException si la Solicitud no es encontrada.
+     */
+    fun generarPdfDeSolicitud(id: Long): ByteArray {
+        val solicitud = solicitudRepository.findById(id)
+            .orElseThrow { ResourceNotFoundException("Solicitud con ID $id no encontrada.") }
+
+        // Los datos necesarios se extraen de la entidad Solicitud y sus relaciones (remitente, guia, direccion, etc.)
+        return PdfGenerator.createGuidePdf(
+            id = solicitud.id!!,
+            remitente = solicitud.remitente.nombre,
+            receptor = solicitud.receptor.nombre,
+            numeroGuia = solicitud.guia.numeroGuia,
+            trackingNumber = solicitud.guia.trackingNumber,
+            direccion = solicitud.direccionEntrega.direccionCompleta,
+            fechaRecoleccion = solicitud.fechaRecoleccion,
+            estado = solicitud.estado.name
+        )
+    }
+
+    /**
+     * 🔍 Recupera todas las solicitudes creadas por un usuario (cliente) específico del sistema.
+     *
+     * @param clientId El ID del usuario creador (entidad User).
+     * @return Una lista de entidades [Solicitud].
+     */
     fun getSolicitudesByClientId(clientId: Long): List<Solicitud> {
-        // Llama al método de Spring Data JPA que definiste en SolicitudRepository
         return solicitudRepository.findAllByClientId(clientId)
     }
 
-
     /**
-     * Actualiza el estado de una solicitud en la base de datos.
+     * 🔄 Actualiza el [EstadoSolicitud] de una solicitud existente.
+     *
+     * @param solicitudId El ID de la Solicitud a actualizar.
+     * @param newState La cadena de texto del nuevo estado (ej: "EN_TRANSITO").
+     * @return La entidad [Solicitud] con el estado actualizado.
+     * @throws ResourceNotFoundException si la Solicitud no existe.
+     * @throws IllegalArgumentException si la cadena de estado no corresponde a un [EstadoSolicitud] válido.
      */
     @Transactional
     fun updateEstado(solicitudId: Long, newState: String): Solicitud {
         val solicitud = solicitudRepository.findById(solicitudId)
             .orElseThrow { ResourceNotFoundException("Solicitud con ID $solicitudId no encontrada.") }
 
-        // Cambia el estado (Ahora es posible porque 'estado' es 'var')
-        solicitud.estado = newState
+        // Valida que la cadena de estado sea un valor válido del Enum EstadoSolicitud
+        val estadoEnum = try {
+            EstadoSolicitud.valueOf(newState.uppercase())
+        } catch (e: IllegalArgumentException) {
+            throw IllegalArgumentException("Estado inválido: $newState. Debe ser uno de los valores definidos en EstadoSolicitud.")
+        }
 
-        // Guarda el cambio en la base de datos
+        solicitud.estado = estadoEnum
         return solicitudRepository.save(solicitud)
     }
 
-    fun findOrCreateDireccion(dir: Direccion): Direccion {
-        val existing = direccionRepository.findByDireccionCompletaAndCiudad(
-            dir.direccionCompleta,
-            dir.ciudad
+    /**
+     * 🔎 Recupera una [Solicitud] de envío utilizando el **número de rastreo** (`trackingNumber`) de su guía.
+     *
+     * @param trackingNumber El código de guía único.
+     * @return La entidad [Solicitud] encontrada.
+     * @throws ResourceNotFoundException si no se encuentra la solicitud con el trackingNumber dado.
+     */
+    @Transactional
+    fun getSolicitudByTrackingNumber(trackingNumber: String): Solicitud {
+        return solicitudRepository.findByGuia_TrackingNumber(trackingNumber)
+            .orElseThrow {
+                // Si el Optional está vacío, lanza la excepción 404
+                ResourceNotFoundException("Solicitud con Tracking Number '$trackingNumber' no encontrada.")
+            }
+    }
+
+    /**
+     * 📋 Obtiene una lista de **todas las solicitudes** registradas en el sistema.
+     * Esto fue añadido para soportar la ruta GET /api/v1/solicitudes/all.
+     *
+     * @return Una [List] de todas las entidades [Solicitud].
+     */
+    fun listarTodas(): List<Solicitud> {
+        return solicitudRepository.findAll()
+    }
+
+    /**
+     * ⏳ Busca todas las solicitudes con estado **PENDIENTE** para una sucursal específica.
+     *
+     * @param sucursalId ID de la sucursal.
+     * @return Lista de Solicitudes en estado PENDIENTE.
+     */
+    fun getPendingBySucursalId(sucursalId: Long): List<Solicitud> {
+        // 🛑 CORRECCIÓN: Pasar el valor del ENUM (EstadoSolicitud.PENDIENTE) en lugar del String literal.
+        return solicitudRepository.findBySucursalIdAndEstado(
+            sucursalId,
+            EstadoSolicitud.PENDIENTE // <--- Tipo Enum
         )
-        return existing ?: direccionRepository.save(dir)
+    }
+
+    /**
+     * ➡️ Busca todas las solicitudes con estado **ASIGNADA** para una sucursal específica.
+     *
+     * @param sucursalId ID de la sucursal.
+     * @return Lista de Solicitudes asignadas (a un gestor o conductor).
+     */
+    fun getAssignedBySucursalId(sucursalId: Long): List<Solicitud> {
+        // 🛑 CORRECCIÓN: Pasar el valor del ENUM (EstadoSolicitud.ASIGNADA) en lugar del String literal.
+        return solicitudRepository.findBySucursalIdAndEstado(
+            sucursalId,
+            EstadoSolicitud.ASIGNADA // <--- Tipo Enum
+        )
+    }
+
+    /**
+     * 🚛 Obtiene todas las **rutas activas** (solicitudes asignadas que no están en estado terminal)
+     * para un conductor específico.
+     *
+     * @param driverId El ID del conductor.
+     * @return Una lista de objetos [Solicitud] en curso.
+     */
+    fun getRoutesByDriverId(driverId: Long): List<Solicitud> {
+        // 🚨 CORRECCIÓN: Usar findByConductor_Id, que navega a través de la relación.
+        val solicitudesAsignadas = solicitudRepository.findByConductor_Id(driverId)
+
+        // Estados terminales que indican que la solicitud ya no está en ruta activa.
+        val estadosFinales = setOf(EstadoSolicitud.ENTREGADA, EstadoSolicitud.CANCELADA)
+
+        return solicitudesAsignadas
+            // Filtramos las que NO estén en un estado terminal
+            .filter { solicitud ->
+                !estadosFinales.contains(solicitud.estado)
+            }
     }
 }
