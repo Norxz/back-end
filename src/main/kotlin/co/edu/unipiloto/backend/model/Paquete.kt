@@ -3,46 +3,50 @@ package co.edu.unipiloto.backend.model
 import jakarta.persistence.*
 
 /**
- * Representa un paquete que será enviado a través del sistema logístico.
- * Contiene dimensiones, peso, contenido y categoría del paquete.
+ * 📦 Entidad JPA que representa la **carga física** (el paquete) que será enviada
+ * a través del sistema logístico.
+ *
+ * Sus atributos son esenciales para determinar el costo del envío (basado en peso/volumen)
+ * y las necesidades de manejo logístico. Mapea a la tabla `paquetes` en la base de datos.
  */
 @Entity
 @Table(name = "paquetes")
 data class Paquete(
 
-    /** Identificador único del paquete en la base de datos */
+    /** 🔑 Identificador único (Primary Key) del paquete en la base de datos. */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
 
-    /** Peso del paquete en kilogramos */
+    /** ⚖️ Peso del paquete, generalmente expresado en kilogramos (kg). **Obligatorio** (valor por defecto 0.0). */
     val peso: Double = 0.0,
 
-    /** Altura del paquete (opcional) */
+    /** Altura del paquete, expresada en centímetros (cm). Opcional, usado para calcular el peso volumétrico. */
     val alto: Double? = null,
 
-    /** Ancho del paquete (opcional) */
+    /** Ancho del paquete, expresado en centímetros (cm). Opcional, usado para calcular el peso volumétrico. */
     val ancho: Double? = null,
 
-    /** Largo del paquete (opcional) */
+    /** Largo del paquete, expresado en centímetros (cm). Opcional, usado para calcular el peso volumétrico. */
     val largo: Double? = null,
 
-    /** Descripción del contenido del paquete */
+    /** Descripción breve del contenido del paquete (Ej: "Documentos personales"). */
     val contenido: String? = null,
 
-    /** Categoría del paquete (ej: frágil, electrónico, ropa, etc.) */
+    /** Clasificación logística o de manejo (Ej: "Frágil", "Perecedero", "Ropa"). Opcional. */
     @Column(name = "categoria")
     val categoria: String? = null,
 ) {
     /**
-     * Constructor vacío requerido por JPA.
-     * Inicializa los campos con valores por defecto o null según corresponda.
+     * 🏗️ Constructor vacío requerido por JPA (Hibernate).
+     * Proporciona valores por defecto para permitir la instanciación por reflexión.
      */
     constructor() : this(
         peso = 0.0,
         alto = null,
         ancho = null,
         largo = null,
-        contenido = null
+        contenido = null,
+        categoria = null
     )
 }

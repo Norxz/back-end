@@ -5,50 +5,65 @@ import jakarta.persistence.*
 import java.time.Instant
 
 /**
- * Representa un cliente dentro del sistema.
- * Un cliente puede actuar como remitente o receptor de solicitudes de envío.
+ * 🧑‍🤝‍🧑 Entidad JPA que representa a un **Cliente** dentro del sistema logístico.
+ *
+ * Un cliente es una persona o entidad que puede iniciar (remitente) o recibir (receptor)
+ * solicitudes de envío. Mapea a la tabla `clientes` en la base de datos.
  */
 @Entity
 @Table(name = "clientes")
 data class Cliente(
 
-    /** Identificador único del cliente en la base de datos */
+    /** 🔑 Identificador único (Primary Key) del cliente en la base de datos. */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
 
-    /** Nombre completo del cliente */
+    /** 🏷️ Nombre completo o razón social del cliente. No puede ser nulo. */
     @Column(nullable = false)
     val nombre: String,
 
-    /** Tipo de identificación (ej: C.C., NIT, etc.) */
+    /** Tipo de identificación (ej: C.C., NIT, C.E.). */
     @Column(name = "tipo_id")
     val tipoId: String? = null,
 
-    /** Número de identificación del cliente */
+    /** 🆔 Número de identificación único del cliente. No puede ser nulo. */
     @Column(name = "numero_id", nullable = false)
     val numeroId: String,
 
-    /** Número de teléfono del cliente */
+    /** 📞 Número de teléfono de contacto. */
     val telefono: String? = null,
 
-    /** Código de país asociado al teléfono del cliente */
+    /** Código de país asociado al teléfono (ej: "+57"). */
     val codigoPais: String? = null,
 
-    /** Tipo de cliente (ej: regular, VIP, corporativo) */
+    /** Clasificación del cliente para uso interno (ej: "regular", "VIP", "corporativo"). */
     @Column(name = "tipo_cliente")
     val tipoCliente: String? = null,
 
-    /** Fecha de creación del registro del cliente */
+    /** 🕰️ Marca de tiempo de la creación del registro del cliente. Se inicializa automáticamente. */
     @Column(name = "fecha_creacion", nullable = false)
     val fechaCreacion: Instant = Instant.now(),
 
-    /** Lista de solicitudes donde el cliente es remitente */
+    // --- RELACIONES JPA ---
+
+    /**
+     * 📨 **Relación Uno a Muchos** con [Solicitud].
+     * Lista de todas las solicitudes donde este cliente figura como **remitente**.
+     * - `mappedBy = "remitente"`: Indica que la relación es bidireccional y el campo de mapeo está en la entidad [Solicitud].
+     * - `FetchType.LAZY`: Los datos de la lista solo se cargan cuando se acceden explícitamente.
+     * - `@JsonIgnoreProperties`: Previene bucles infinitos durante la serialización JSON.
+     */
     @OneToMany(mappedBy = "remitente", fetch = FetchType.LAZY)
     @JsonIgnoreProperties("remitente", "receptor")
     val solicitudesComoRemitente: List<Solicitud> = emptyList(),
 
-    /** Lista de solicitudes donde el cliente es receptor */
+    /**
+     * 📥 **Relación Uno a Muchos** con [Solicitud].
+     * Lista de todas las solicitudes donde este cliente figura como **receptor**.
+     * - `mappedBy = "receptor"`: Indica que el mapeo está en la entidad [Solicitud].
+     * - `@JsonIgnoreProperties`: Previene bucles infinitos de serialización.
+     */
     @OneToMany(mappedBy = "receptor", fetch = FetchType.LAZY)
     @JsonIgnoreProperties("receptor", "remitente")
     val solicitudesComoReceptor: List<Solicitud> = emptyList()

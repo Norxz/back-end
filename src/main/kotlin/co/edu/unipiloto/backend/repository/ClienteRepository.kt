@@ -6,39 +6,56 @@ import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 
 /**
- * Repositorio para la entidad [Cliente].
- * Proporciona métodos para CRUD y consultas personalizadas sobre clientes.
+ * 🧑‍🤝‍🧑 Repositorio de Spring Data JPA para la entidad [Cliente].
+ *
+ * Extiende [JpaRepository] para proporcionar métodos CRUD básicos.
+ * Además, define métodos de consulta derivados y personalizados para buscar y contar clientes.
  */
 @Repository
 interface ClienteRepository : JpaRepository<Cliente, Long> {
 
+    // --- Métodos de Consulta Derivados ---
+
     /**
-     * Busca clientes cuyo nombre contenga el texto especificado, ignorando mayúsculas/minúsculas.
+     * Busca clientes cuyo **nombre** contenga el texto especificado, ignorando mayúsculas/minúsculas.
+     * (Ej: `findByNombreContainingIgnoreCase("juan")` encuentra "Juan Perez" y "juAnito").
      */
     fun findByNombreContainingIgnoreCase(nombre: String): List<Cliente>
 
     /**
-     * Busca un cliente por su número de identificación.
+     * Busca un cliente por su **número de identificación** exacto.
+     * @param numeroId Número de identificación (ej. CC, NIT).
+     * @return El cliente encontrado o `null` si no existe.
      */
     fun findByNumeroId(numeroId: String): Cliente?
 
     /**
-     * Verifica si existe un cliente con el número de identificación dado.
+     * Verifica eficientemente si existe un cliente con el **número de identificación** dado.
+     * @param numeroId Número de identificación a verificar.
+     * @return `true` si existe, `false` en caso contrario.
      */
     fun existsByNumeroId(numeroId: String): Boolean
 
     /**
-     * Busca un cliente por tipo de identificación y número de identificación.
+     * Busca un cliente por una combinación de **tipo de identificación y número de identificación**.
+     * @param tipoId Tipo de identificación (ej. "CC").
+     * @param numeroId Número de identificación.
+     * @return El cliente encontrado o `null`.
      */
     fun findByTipoIdAndNumeroId(tipoId: String, numeroId: String): Cliente?
 
     // ---------------------------------------
-    // 🔥 MÉTODOS RECOMENDADOS NUEVOS
+    // 🔥 Métodos Personalizados (JPQL)
     // ---------------------------------------
 
     /**
-     * Busca clientes cuyo nombre o número de identificación contenga el filtro dado.
-     * Útil para buscadores en UI.
+     * 🔎 Busca clientes de forma flexible, comparando el filtro tanto con el
+     * **nombre** como con el **número de identificación**, ignorando mayúsculas/minúsculas.
+     *
+     * Útil para implementar un buscador general en interfaces de usuario.
+     *
+     * @param filtro Texto de búsqueda.
+     * @return Lista de clientes que coinciden con el filtro.
      */
     @Query(
         """
@@ -50,7 +67,11 @@ interface ClienteRepository : JpaRepository<Cliente, Long> {
     fun buscarClientes(filtro: String): List<Cliente>
 
     /**
-     * Cuenta la cantidad de solicitudes en las que el cliente es remitente.
+     * 🔢 Cuenta la cantidad de registros en la entidad [Solicitud] en las que el cliente
+     * (identificado por `clienteId`) figura como **remitente**.
+     *
+     * @param clienteId ID del cliente.
+     * @return El número total de solicitudes donde es remitente.
      */
     @Query(
         """
@@ -61,7 +82,11 @@ interface ClienteRepository : JpaRepository<Cliente, Long> {
     fun countSolicitudesComoRemitente(clienteId: Long): Long
 
     /**
-     * Cuenta la cantidad de solicitudes en las que el cliente es receptor.
+     * 🔢 Cuenta la cantidad de registros en la entidad [Solicitud] en las que el cliente
+     * (identificado por `clienteId`) figura como **receptor**.
+     *
+     * @param clienteId ID del cliente.
+     * @return El número total de solicitudes donde es receptor.
      */
     @Query(
         """

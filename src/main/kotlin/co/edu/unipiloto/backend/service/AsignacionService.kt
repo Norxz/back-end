@@ -7,13 +7,14 @@ import co.edu.unipiloto.backend.repository.SolicitudRepository
 import co.edu.unipiloto.backend.repository.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
 
 /**
- * 📦 Servicio encargado de la lógica de negocio para la asignación de personal
+ * 🧑‍🤝‍ Servicio encargado de la lógica de negocio para la **asignación de personal**
  * operativo (Gestores y Conductores) a las solicitudes de envío ([Solicitud]).
  *
- * Este servicio utiliza transacciones para asegurar la integridad de los datos
- * durante el proceso de asignación.
+ * Utiliza transacciones (`@Transactional`) para asegurar la **integridad de los datos**
+ * durante la modificación de las asignaciones y el estado de la solicitud.
  */
 @Service
 class AsignacionService(
@@ -22,11 +23,13 @@ class AsignacionService(
 ) {
 
     /**
-     * 👤 Asigna un Gestor específico a una Solicitud de envío.
+     * 👤 Asigna un **Gestor** específico a una Solicitud de envío.
      *
-     * 1. Busca la [Solicitud] y el [Gestor] por sus respectivos IDs.
-     * 2. 🛑 Establece el Gestor y cambia el estado a "ASIGNADA".
-     * 3. Guarda la Solicitud actualizada.
+     * Este método se utiliza típicamente en la primera fase de gestión de una solicitud PENDIENTE.
+     *
+     * 1. 🔍 Busca y valida la existencia de la [Solicitud] y el [Gestor].
+     * 2. 🚦 Cambia el estado a [EstadoSolicitud.ASIGNADA].
+     * 3. 💾 Persiste la [Solicitud] actualizada.
      *
      * @param solicitudId El ID de la Solicitud que necesita ser asignada.
      * @param gestorId El ID del Gestor que será responsable de la solicitud.
@@ -41,24 +44,24 @@ class AsignacionService(
         val gestor = userRepository.findById(gestorId)
             .orElseThrow { ResourceNotFoundException("Gestor con ID $gestorId no encontrado") }
 
-        // El estado ASIGNADA puede indicar que el Gestor es responsable de la Solicitud.
-        solicitud.estado = EstadoSolicitud.ASIGNADA
-
-        // Asigna la relación
+        // Establece el Gestor
         solicitud.gestor = gestor
+
+        // Cambia el estado para indicar que la gestión ha sido iniciada por un responsable.
+        solicitud.estado = EstadoSolicitud.ASIGNADA
 
         return solicitudRepository.save(solicitud)
     }
 
     /**
-     * 🚚 Asigna un Conductor y simultáneamente registra al Gestor que realiza dicha asignación
+     * 🚚 Asigna un **Conductor** y registra al **Gestor** que realiza dicha asignación
      * a una Solicitud específica.
      *
-     * Nota: Este método asume que tanto el gestor como el conductor son pasados en la petición.
+     * Este método se utiliza cuando el gestor asigna la solicitud a un conductor para la ruta de recolección.
      *
-     * 1. Busca la [Solicitud], el [Gestor] y el [Conductor].
-     * 2. 🛑 Establece las relaciones y cambia el estado a "ASIGNADA".
-     * 3. Persiste los cambios de la Solicitud.
+     * 1. 🔍 Busca y valida la existencia de la [Solicitud], el [Gestor] y el [Conductor].
+     * 2. 🚦 Cambia el estado a [EstadoSolicitud.ASIGNADA] (o se podría cambiar a EN_RUTA_RECOLECCION, dependiendo del flujo exacto).
+     * 3. 💾 Persiste los cambios de la Solicitud.
      *
      * @param solicitudId El ID de la Solicitud.
      * @param gestorId El ID del Gestor que realiza la acción de asignación.
@@ -81,25 +84,26 @@ class AsignacionService(
         val conductor = userRepository.findById(conductorId)
             .orElseThrow { ResourceNotFoundException("Conductor con ID $conductorId no encontrado") }
 
-        solicitud.estado = EstadoSolicitud.ASIGNADA
-
         // Asigna el conductor y registra al gestor que hizo la asignación
         solicitud.conductor = conductor
         solicitud.gestor = gestor
+
+        // Actualiza el estado y la fecha de asignación del conductor
+        solicitud.estado = EstadoSolicitud.ASIGNADA // El estado de ruta lo cambiará el conductor
+        // solicitud.fechaAsignacionConductor = Instant.now() // Si se necesitara actualizar el Instant
 
         return solicitudRepository.save(solicitud)
     }
 
     /**
-     * 🚛 Asigna (o reasigna) un Recolector/Conductor a una Solicitud,
+     * 🚛 Asigna (o reasigna) un **Recolector/Conductor** a una Solicitud,
      * basado únicamente en el ID de la solicitud y el ID del recolector.
      *
-     * Este es el método que se utiliza desde la aplicación Android para asignar/reasignar
-     * conductores a solicitudes pendientes.
+     * Este es un método simplificado, a menudo utilizado por la aplicación móvil del conductor o un sistema automatizado.
      *
-     * 1. Busca la [Solicitud] y el [Recolector] por sus IDs.
-     * 2. 🛑 Establece el Recolector (Conductor) y cambia el estado a "ASIGNADA".
-     * 3. Guarda la Solicitud actualizada.
+     * 1. 🔍 Busca y valida la [Solicitud] y el [Recolector] (Usuario con rol [Role.CONDUCTOR]).
+     * 2. 🛑 Establece el Recolector (campo `conductor`) y cambia el estado a [EstadoSolicitud.ASIGNADA].
+     * 3. 💾 Guarda la Solicitud actualizada.
      *
      * @param solicitudId El ID de la Solicitud.
      * @param recolectorId El ID del usuario que actuará como recolector/conductor.
@@ -108,19 +112,16 @@ class AsignacionService(
      */
     @Transactional
     fun asignarRecolectorASolicitud(solicitudId: Long, recolectorId: Long): Solicitud {
-        // 1. Buscar Solicitud
         val solicitud = solicitudRepository.findById(solicitudId)
             .orElseThrow { ResourceNotFoundException("Solicitud con ID $solicitudId no encontrada") }
 
-        // 2. Buscar Recolector (Usuario)
         val recolector = userRepository.findById(recolectorId)
             .orElseThrow { ResourceNotFoundException("Recolector/Conductor con ID $recolectorId no encontrado") }
 
-        // 3. Establecer relaciones y estado
-        solicitud.conductor = recolector // Asumo que el campo 'conductor' se usa para el recolector
-        solicitud.estado = EstadoSolicitud.ASIGNADA
+        // Asigna el conductor (recolector)
+        solicitud.conductor = recolector
+        solicitud.estado = EstadoSolicitud.ASIGNADA // Se marca como asignada
 
-        // 4. Guardar y retornar
         return solicitudRepository.save(solicitud)
     }
 }

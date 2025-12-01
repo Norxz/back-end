@@ -1,10 +1,14 @@
 package co.edu.unipiloto.backend.dto
 
 /**
- * DTO utilizado para recibir los datos de login desde el cliente.
+ * 🔑 Data Transfer Object (DTO) utilizado para **recibir** las credenciales de
+ * inicio de sesión (login) desde el front-end (cliente).
  *
- * @property email Correo electrónico del usuario
- * @property password Contraseña del usuario en texto plano
+ * Es la estructura mínima necesaria para la autenticación de un usuario.
+ *
+ * @property email Correo electrónico del usuario que intenta iniciar sesión. **Obligatorio**.
+ * @property password Contraseña del usuario en texto plano. Esta contraseña debe ser
+ * enviada a la capa de servicio para ser hasheada y comparada con el hash almacenado en la DB. **Obligatorio**.
  */
 data class LoginRequest(
     val email: String,

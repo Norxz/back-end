@@ -13,9 +13,10 @@ import java.util.*
 import java.time.Instant
 
 /**
- * 📨 Servicio encargado de la lógica de negocio central para la gestión de [Solicitud]es de envío.
- * Coordina la creación y gestión de múltiples entidades relacionadas (Guía, Dirección, Paquete, Cliente, Sucursal)
- * en una sola operación transaccional.
+ * 📨 Servicio de Spring (`@Service`) encargado de la lógica de negocio central para la gestión de [Solicitud]es de envío.
+ *
+ * Coordina la **creación** y **gestión** de múltiples entidades relacionadas ([Guia], [Direccion], [Paquete], [Cliente], [Sucursal])
+ * en una sola operación transaccional, garantizando la consistencia de los datos.
  *
  * @property solicitudRepository Repositorio para la entidad Solicitud.
  * @property userRepository Repositorio para la entidad User (clientes, conductores, etc.).
@@ -34,12 +35,17 @@ class SolicitudService(
     private val sucursalRepository: SucursalRepository
 ) {
 
+    // -------------------------------------------------------------------------
+    // ## Creación de Solicitud (Transaccional)
+    // -------------------------------------------------------------------------
+
     /**
      * 📝 Crea una nueva solicitud de envío a partir de los datos del DTO [SolicitudRequest].
-     * Esta operación es transaccional para asegurar la atomicidad en la creación de todas las entidades
-     * dependientes (Cliente, Dirección, Guía, Paquete).
      *
-     * Flujo de Creación:
+     * Esta operación es **transaccional** para asegurar la atomicidad en la creación de todas las entidades
+     * dependientes ([Cliente], [Direccion], [Guia], [Paquete]).
+     *
+     * **Flujo de Creación:**
      * 1. Verifica la existencia de [User] (client) y [Sucursal].
      * 2. Obtiene o crea las entidades [Cliente] para Remitente y Receptor.
      * 3. Obtiene o crea las entidades [Direccion] para Recolección (si existe) y Entrega.
@@ -121,7 +127,7 @@ class SolicitudService(
             guia = nuevaGuia,
             fechaRecoleccion = request.fechaRecoleccion,
             franjaHoraria = request.franjaHoraria,
-            estado = EstadoSolicitud.PENDIENTE
+            estado = EstadoSolicitud.PENDIENTE // Estado inicial de la Solicitud
         )
 
         return solicitudRepository.save(nuevaSolicitud)
@@ -158,7 +164,8 @@ class SolicitudService(
 
     /**
      * 📍 Busca una [Direccion] existente por su dirección completa y ciudad. Si no existe, la crea y la persiste.
-     * Este método asegura que no se creen entradas duplicadas en la tabla de direcciones.
+     *
+     * Este método asegura que no se creen entradas duplicadas en la tabla de direcciones, optimizando el uso de la base de datos.
      *
      * @param dir La entidad [Direccion] a buscar/crear (con datos temporales, sin ID).
      * @return La entidad [Direccion] existente o recién creada.
@@ -172,7 +179,9 @@ class SolicitudService(
         return existing ?: direccionRepository.save(dir)
     }
 
-    // --- Funciones de Consulta y Actualización ---
+    // -------------------------------------------------------------------------
+    // ## Funciones de Consulta y Actualización
+    // -------------------------------------------------------------------------
 
     /**
      * 📄 Genera un documento PDF para la solicitud de envío, utilizando la clase auxiliar [PdfGenerator].
@@ -234,7 +243,7 @@ class SolicitudService(
     }
 
     /**
-     * 🔎 Recupera una [Solicitud] de envío utilizando el número de rastreo (trackingNumber) de su guía.
+     * 🔎 Recupera una [Solicitud] de envío utilizando el **número de rastreo** (`trackingNumber`) de su guía.
      *
      * @param trackingNumber El código de guía único.
      * @return La entidad [Solicitud] encontrada.
@@ -250,23 +259,23 @@ class SolicitudService(
     }
 
     /**
-     * 📋 Obtiene una lista de todas las solicitudes registradas en el sistema.
+     * 📋 Obtiene una lista de **todas las solicitudes** registradas en el sistema.
      * Esto fue añadido para soportar la ruta GET /api/v1/solicitudes/all.
      *
      * @return Una [List] de todas las entidades [Solicitud].
      */
     fun listarTodas(): List<Solicitud> {
-        // Asumiendo que tienes una SolicitudRepository inyectada
         return solicitudRepository.findAll()
     }
 
     /**
-     * Busca todas las solicitudes con estado PENDIENTE para una sucursal específica.
+     * ⏳ Busca todas las solicitudes con estado **PENDIENTE** para una sucursal específica.
+     *
      * @param sucursalId ID de la sucursal.
-     * @return Lista de Solicitudes.
+     * @return Lista de Solicitudes en estado PENDIENTE.
      */
     fun getPendingBySucursalId(sucursalId: Long): List<Solicitud> {
-        // 🛑 CORRECCIÓN: Pasar el valor del ENUM (EstadoSolicitud.PENDIENTE) en lugar del String literal ("PENDIENTE").
+        // 🛑 CORRECCIÓN: Pasar el valor del ENUM (EstadoSolicitud.PENDIENTE) en lugar del String literal.
         return solicitudRepository.findBySucursalIdAndEstado(
             sucursalId,
             EstadoSolicitud.PENDIENTE // <--- Tipo Enum
@@ -274,13 +283,13 @@ class SolicitudService(
     }
 
     /**
-     * Busca todas las solicitudes con estado ASIGNADA o en tránsito para una sucursal específica.
+     * ➡️ Busca todas las solicitudes con estado **ASIGNADA** para una sucursal específica.
+     *
      * @param sucursalId ID de la sucursal.
-     * @return Lista de Solicitudes.
+     * @return Lista de Solicitudes asignadas (a un gestor o conductor).
      */
     fun getAssignedBySucursalId(sucursalId: Long): List<Solicitud> {
-        // Para simplificar, asumiremos que "ASIGNADA" es el estado correcto.
-        // 🛑 CORRECCIÓN: Pasar el valor del ENUM (EstadoSolicitud.ASIGNADA) en lugar del String literal ("ASIGNADA").
+        // 🛑 CORRECCIÓN: Pasar el valor del ENUM (EstadoSolicitud.ASIGNADA) en lugar del String literal.
         return solicitudRepository.findBySucursalIdAndEstado(
             sucursalId,
             EstadoSolicitud.ASIGNADA // <--- Tipo Enum
@@ -288,14 +297,17 @@ class SolicitudService(
     }
 
     /**
-     * Obtiene todas las solicitudes asignadas (rutas activas) a un conductor específico.
+     * 🚛 Obtiene todas las **rutas activas** (solicitudes asignadas que no están en estado terminal)
+     * para un conductor específico.
+     *
      * @param driverId El ID del conductor.
-     * @return Una lista de objetos Solicitud.
+     * @return Una lista de objetos [Solicitud] en curso.
      */
     fun getRoutesByDriverId(driverId: Long): List<Solicitud> {
-        // 🚨 CORRECCIÓN: Usar findByConductor_Id, que ahora existe en el repositorio
+        // 🚨 CORRECCIÓN: Usar findByConductor_Id, que navega a través de la relación.
         val solicitudesAsignadas = solicitudRepository.findByConductor_Id(driverId)
 
+        // Estados terminales que indican que la solicitud ya no está en ruta activa.
         val estadosFinales = setOf(EstadoSolicitud.ENTREGADA, EstadoSolicitud.CANCELADA)
 
         return solicitudesAsignadas

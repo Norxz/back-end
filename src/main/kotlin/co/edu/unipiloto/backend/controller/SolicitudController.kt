@@ -11,10 +11,19 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
 /**
- * Controlador para manejar todas las operaciones relacionadas con las solicitudes.
+ * 📦 Controlador REST principal para manejar todas las operaciones relacionadas con las **Solicitudes** de envío.
  *
- * Permite crear solicitudes, consultar por cliente, actualizar estado,
- * generar PDF y asignar gestores o conductores.
+ * Expone la API para:
+ * 1. Crear nuevas solicitudes.
+ * 2. Consultar solicitudes por cliente, tracking number, o sucursal/estado.
+ * 3. Actualizar el estado de una solicitud.
+ * 4. Asignar gestores y conductores.
+ * 5. Consultar rutas asignadas a un conductor (Dashboard del conductor).
+ *
+ * Mapea a la ruta base: `/api/v1/solicitudes`
+ *
+ * @property solicitudService Servicio con la lógica de negocio para las solicitudes.
+ * @property asignacionService Servicio con la lógica de negocio para la asignación de personal.
  */
 @RestController
 @RequestMapping("/api/v1/solicitudes")
@@ -26,7 +35,15 @@ class SolicitudController(
 // --- CREACIÓN ---
 
     /**
-     * Crea una nueva solicitud.
+     * 📝 Crea una nueva solicitud de envío en el sistema.
+     *
+     * Mapea a: `POST /api/v1/solicitudes`
+     *
+     * @param request DTO ([SolicitudRequest]) con todos los detalles de la solicitud (remitente, receptor, paquete, etc.).
+     * @return [ResponseEntity] con:
+     * - HTTP **201 CREATED** y la solicitud creada ([SolicitudResponse]).
+     * - HTTP **404 NOT FOUND** si una entidad relacionada (cliente, sucursal) no existe.
+     * - HTTP **500 INTERNAL_SERVER_ERROR** en caso de error inesperado durante la creación.
      */
     @PostMapping
     fun crearSolicitud(@RequestBody request: SolicitudRequest): ResponseEntity<*> {
@@ -35,6 +52,7 @@ class SolicitudController(
             val response = SolicitudResponse(nuevaSolicitud)
             ResponseEntity(response, HttpStatus.CREATED)
         } catch (e: ResourceNotFoundException) {
+            // Maneja el caso de que IDs relacionados (como el cliente o la sucursal) no existan.
             ResponseEntity(e.message, HttpStatus.NOT_FOUND)
         } catch (e: Exception) {
             ResponseEntity("Error al crear la solicitud: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
@@ -44,24 +62,25 @@ class SolicitudController(
 // --- CONSULTA GENERAL ---
 
     /**
-     * Obtiene todas las solicitudes del sistema (útil para administración o depuración).
+     * 📋 Obtiene todas las solicitudes de envío registradas en el sistema.
      *
-     * Mapea a: GET /api/v1/solicitudes
-     * @return Lista de [SolicitudResponse]
+     * Mapea a: `GET /api/v1/solicitudes`
+     * @return Lista de [SolicitudResponse] (Útil principalmente para roles de administración).
      */
     @GetMapping
     fun listarTodasLasSolicitudes(): ResponseEntity<List<SolicitudResponse>> {
-        // Asumiendo que existe un método 'listarTodas()' en SolicitudService
         val solicitudes: List<Solicitud> = solicitudService.listarTodas()
         val responseList = solicitudes.map { SolicitudResponse(it) }
         return ResponseEntity(responseList, HttpStatus.OK)
     }
 
     /**
-     * Obtiene todas las solicitudes de un cliente específico.
+     * 👤 Obtiene todas las solicitudes creadas por un cliente específico.
      *
-     * @param clientId ID del cliente
-     * @return Lista de [SolicitudResponse]
+     * Mapea a: `GET /api/v1/solicitudes/client/{clientId}`
+     *
+     * @param clientId ID del cliente ([User]) creador de las solicitudes.
+     * @return Lista de [SolicitudResponse] (Historial de solicitudes del cliente).
      */
     @GetMapping("/client/{clientId}")
     fun getSolicitudesByClient(@PathVariable clientId: Long): ResponseEntity<List<SolicitudResponse>> {
@@ -71,9 +90,13 @@ class SolicitudController(
     }
 
     /**
-     * Obtiene una solicitud por su número de rastreo (trackingNumber) de la guía.
+     * 🔎 Obtiene una solicitud por su número de rastreo (`trackingNumber`) de la guía.
      *
-     * Mapea a: GET /api/v1/solicitudes/tracking/{trackingNumber}
+     * Mapea a: `GET /api/v1/solicitudes/tracking/{trackingNumber}`
+     *
+     * @param trackingNumber El código de rastreo único asociado a la guía.
+     * @return [ResponseEntity] con la solicitud ([SolicitudResponse]) o un error.
+     * - HTTP **404 NOT FOUND** si el tracking number no corresponde a ninguna solicitud.
      */
     @GetMapping("/tracking/{trackingNumber}")
     fun getSolicitudByTrackingNumber(@PathVariable trackingNumber: String): ResponseEntity<*> {
@@ -89,12 +112,19 @@ class SolicitudController(
     }
 
     /**
-     * Genera un PDF de la solicitud.
+     * 📄 Genera un PDF de la guía de la solicitud.
+     *
+     * Mapea a: `GET /api/v1/solicitudes/{id}/pdf`
+     *
+     * @param id ID de la solicitud.
+     * @return [ResponseEntity] con el PDF en bytes si tiene éxito, o HTTP 404/500 si falla.
+     * - Nota: Este endpoint puede ser redundante si ya existe el endpoint `/api/v1/guia/download/{id}` en `PdfController`.
      */
     @GetMapping("/{id}/pdf")
     fun generarPdf(@PathVariable id: Long): ResponseEntity<ByteArray> {
         return try {
             val pdf = solicitudService.generarPdfDeSolicitud(id)
+            // Retorna 200 OK con el contenido binario.
             ResponseEntity(pdf, HttpStatus.OK)
         } catch (e: ResourceNotFoundException) {
             ResponseEntity(null, HttpStatus.NOT_FOUND)
@@ -103,25 +133,55 @@ class SolicitudController(
         }
     }
 
+    /**
+     * 🚚 Obtiene las rutas (solicitudes en curso) asignadas a un conductor específico.
+     * Este endpoint es crucial para el Dashboard de la aplicación Android del conductor.
+     *
+     * Mapea a: `GET /api/v1/solicitudes/driver/{driverId}/routes`
+     *
+     * @param driverId ID del conductor/recolector ([User]).
+     * @return Lista de [SolicitudResponse] filtradas por conductor y estado activo (no finalizado/cancelado).
+     */
+    @GetMapping("/driver/{driverId}/routes")
+    fun getRoutesByDriverId(@PathVariable driverId: Long): ResponseEntity<List<SolicitudResponse>> {
+        return try {
+            val solicitudes: List<Solicitud> = solicitudService.getRoutesByDriverId(driverId)
+            val responseList = solicitudes.map { SolicitudResponse(it) }
+            // Retorna 200 OK. La lista vacía indica que no hay rutas asignadas actualmente.
+            ResponseEntity(responseList, HttpStatus.OK)
+        } catch (e: Exception) {
+            // Manejo de error interno.
+            ResponseEntity(emptyList(), HttpStatus.INTERNAL_SERVER_ERROR)
+        }
+    }
+
 // --- CONSULTA POR SUCURSAL ---
 
     /**
-     * Obtiene las solicitudes **PENDIENTES** de una sucursal específica.
+     * 🏭 Obtiene las solicitudes que están en estado **PENDIENTE** para una sucursal específica.
+     *
+     * Mapea a: `GET /api/v1/solicitudes/branch/{sucursalId}`
+     *
+     * @param sucursalId ID de la sucursal.
+     * @return Lista de [SolicitudResponse] pendientes de asignación o procesamiento en la sucursal.
      */
     @GetMapping("/branch/{sucursalId}")
     fun getSolicitudesPendingBySucursal(@PathVariable sucursalId: Long): ResponseEntity<List<SolicitudResponse>> {
-        // Asumiendo que esta función existe en SolicitudService y filtra por PENDIENTE
         val solicitudes: List<Solicitud> = solicitudService.getPendingBySucursalId(sucursalId)
         val responseList = solicitudes.map { SolicitudResponse(it) }
         return ResponseEntity(responseList, HttpStatus.OK)
     }
 
     /**
-     * Obtiene las solicitudes **ASIGNADAS** de una sucursal específica.
+     * ⚙️ Obtiene las solicitudes que ya han sido **ASIGNADAS** a personal (gestor/conductor) dentro de una sucursal específica.
+     *
+     * Mapea a: `GET /api/v1/solicitudes/branch/{sucursalId}/assigned`
+     *
+     * @param sucursalId ID de la sucursal.
+     * @return Lista de [SolicitudResponse] en estado asignado.
      */
     @GetMapping("/branch/{sucursalId}/assigned")
     fun getSolicitudesAssignedBySucursal(@PathVariable sucursalId: Long): ResponseEntity<List<SolicitudResponse>> {
-        // Asumiendo que esta función existe en SolicitudService y filtra por ASIGNADA
         val solicitudes: List<Solicitud> = solicitudService.getAssignedBySucursalId(sucursalId)
         val responseList = solicitudes.map { SolicitudResponse(it) }
         return ResponseEntity(responseList, HttpStatus.OK)
@@ -130,7 +190,17 @@ class SolicitudController(
 // --- ACTUALIZACIÓN Y ASIGNACIÓN ---
 
     /**
-     * Actualiza el estado de una solicitud.
+     * ➡️ Actualiza el estado de una solicitud específica.
+     * Usado por gestores o automáticamente por el sistema/conductor.
+     *
+     * Mapea a: `PUT /api/v1/solicitudes/{solicitudId}/estado`
+     * Cuerpo esperado: `{"estado": "NUEVO_ESTADO_EN_MAYUSCULAS"}`
+     *
+     * @param solicitudId ID de la solicitud a actualizar.
+     * @param estadoUpdate Mapa que contiene la clave "estado" con el nuevo valor.
+     * @return HTTP **204 NO CONTENT** si la actualización es exitosa.
+     * - HTTP **400 BAD REQUEST** si falta el campo 'estado'.
+     * - HTTP **404 NOT FOUND** si la solicitud no existe.
      */
     @PutMapping("/{solicitudId}/estado")
     fun updateEstado(
@@ -144,17 +214,25 @@ class SolicitudController(
         }
 
         return try {
+            // Llama al servicio, convirtiendo el estado a mayúsculas (ENUM_STRING).
             solicitudService.updateEstado(solicitudId, newState.uppercase())
-            ResponseEntity<Void>(HttpStatus.NO_CONTENT)
+            ResponseEntity<Void>(HttpStatus.NO_CONTENT) // Éxito sin contenido de respuesta.
         } catch (e: ResourceNotFoundException) {
             ResponseEntity("Solicitud $solicitudId no encontrada.", HttpStatus.NOT_FOUND)
         } catch (e: Exception) {
+            // Puede capturar IllegalArgumentException si el estado enviado no es válido.
             ResponseEntity("Error al actualizar el estado: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
 
     /**
-     * Asigna un gestor a una solicitud.
+     * 👥 Asigna un gestor a una solicitud específica.
+     *
+     * Mapea a: `POST /api/v1/solicitudes/{solicitudId}/asignar-gestor/{gestorId}`
+     *
+     * @param solicitudId ID de la solicitud.
+     * @param gestorId ID del gestor ([User]) a asignar.
+     * @return [ResponseEntity] con la solicitud actualizada ([SolicitudResponse]).
      */
     @PostMapping("/{solicitudId}/asignar-gestor/{gestorId}")
     fun asignarGestor(
@@ -172,7 +250,14 @@ class SolicitudController(
     }
 
     /**
-     * Asigna un conductor a una solicitud (Usando RequestParam - Método antiguo).
+     * 🚛 Asigna un conductor a una solicitud (Método que utiliza RequestParam).
+     *
+     * Mapea a: `POST /api/v1/solicitudes/{solicitudId}/asignar-conductor?gestorId={id}&conductorId={id}`
+     *
+     * @param solicitudId ID de la solicitud.
+     * @param gestorId ID del gestor que realiza la asignación.
+     * @param conductorId ID del conductor a asignar.
+     * @return [ResponseEntity] con la solicitud actualizada ([SolicitudResponse]).
      */
     @PostMapping("/{solicitudId}/asignar-conductor")
     fun asignarConductor(
@@ -190,13 +275,16 @@ class SolicitudController(
         }
     }
 
-    // 🏆 NUEVA FUNCIÓN PARA CORREGIR EL ERROR 404 DE ANDROID
     /**
-     * Asigna o reasigna un conductor/recolector a una solicitud,
-     * utilizando la ruta y el formato de cuerpo JSON que espera la app Android.
+     * 📱 Asigna o reasigna un conductor/recolector a una solicitud, utilizando el formato JSON
+     * que espera la aplicación Android (moderno/reestructurado).
      *
-     * Mapea a: PUT /api/v1/solicitudes/{solicitudId}/assign-driver
-     * Cuerpo esperado: {"recolectorId": "3"}
+     * Mapea a: `PUT /api/v1/solicitudes/{solicitudId}/assign-driver`
+     * Cuerpo esperado: `{"recolectorId": "3"}`
+     *
+     * @param solicitudId ID de la solicitud.
+     * @param body Mapa que contiene el `recolectorId` (ID del conductor).
+     * @return [ResponseEntity] con la solicitud actualizada ([SolicitudResponse]) o error.
      */
     @PutMapping("/{solicitudId}/assign-driver")
     fun assignDriver(
@@ -209,15 +297,14 @@ class SolicitudController(
             return ResponseEntity("Falta el campo 'recolectorId' en la petición.", HttpStatus.BAD_REQUEST)
         }
 
+        // 1. Intenta convertir el String ID a Long.
         val recolectorId = recolectorIdString.toLongOrNull()
         if (recolectorId == null) {
             return ResponseEntity("El campo 'recolectorId' debe ser un número válido.", HttpStatus.BAD_REQUEST)
         }
 
         return try {
-            // Asumiendo que el gestorId es manejado por la capa de servicio o es implícito,
-            // usaremos la función de asignación de conductor, simplificando la lógica para
-            // manejar la reasignación/asignación por ID de recolector.
+            // Llama a la lógica de asignación simplificada del servicio.
             val solicitudActualizada = asignacionService.asignarRecolectorASolicitud(solicitudId, recolectorId)
 
             ResponseEntity(SolicitudResponse(solicitudActualizada), HttpStatus.OK)
@@ -225,30 +312,6 @@ class SolicitudController(
             ResponseEntity(e.message, HttpStatus.NOT_FOUND)
         } catch (e: Exception) {
             ResponseEntity("Error al asignar conductor: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
-        }
-    }
-
-    /**
-     * Obtiene todas las solicitudes de envío ASIGNADAS a un conductor específico.
-     *
-     * Mapea a: GET /api/v1/solicitudes/driver/{driverId}/routes
-     * ESTE ES EL ENDPOINT QUE BUSCA LA APP ANDROID.
-     *
-     * @param driverId ID del conductor/recolector.
-     * @return Lista de [SolicitudResponse] (Generalmente filtradas por estado 'ASIGNADA' o 'EN_RUTA').
-     */
-    @GetMapping("/driver/{driverId}/routes")
-    fun getRoutesByDriverId(@PathVariable driverId: Long): ResponseEntity<List<SolicitudResponse>> {
-        return try {
-            // Asumiendo que existe un método en SolicitudService que trae las solicitudes
-            // que están en curso (ASIGNADA, EN_RUTA, EN_DISTRIBUCION, etc.) para ese conductor.
-            val solicitudes: List<Solicitud> = solicitudService.getRoutesByDriverId(driverId)
-            val responseList = solicitudes.map { SolicitudResponse(it) }
-
-            // Retorna 200 OK, incluso si la lista está vacía (cero rutas), no un 404.
-            ResponseEntity(responseList, HttpStatus.OK)
-        } catch (e: Exception) {
-            ResponseEntity(emptyList(), HttpStatus.INTERNAL_SERVER_ERROR) // Manejo de errores
         }
     }
 }

@@ -1,19 +1,22 @@
 package co.edu.unipiloto.backend.dto
 
 /**
- * DTO utilizado para recibir información de una dirección desde el front-end.
+ * 🗺️ Data Transfer Object (DTO) utilizado para **recibir** información de una dirección
+ * desde el front-end.
  *
- * Se puede usar para crear o actualizar direcciones asociadas a clientes o sucursales.
+ * Esta estructura de datos se emplea para:
+ * 1. Crear una nueva dirección (de recolección o entrega) para una solicitud.
+ * 2. Actualizar una dirección existente.
  *
- * @property direccionCompleta Dirección completa en formato texto
- * @property ciudad Ciudad donde se encuentra la dirección
- * @property latitud Latitud geográfica de la dirección (opcional)
- * @property longitud Longitud geográfica de la dirección (opcional)
- * @property pisoApto Piso o apartamento, si aplica (opcional)
- * @property notasEntrega Notas adicionales para la entrega (opcional)
- * @property barrio Barrio o sector de la dirección (opcional)
- * @property codigoPostal Código postal de la dirección (opcional)
- * @property tipoDireccion Tipo de dirección (ej. residencial, comercial) (opcional)
+ * @property direccionCompleta La dirección física completa en formato texto (Ej: Calle 10 # 5-45). **Obligatorio**.
+ * @property ciudad La ciudad o municipio donde se encuentra la dirección. **Obligatorio**.
+ * @property latitud Latitud geográfica precisa de la dirección. Opcional, pero recomendado para logística.
+ * @property longitud Longitud geográfica precisa de la dirección. Opcional, pero recomendado para logística.
+ * @property pisoApto Información adicional como número de piso o apartamento, si aplica. Opcional.
+ * @property notasEntrega Instrucciones adicionales o puntos de referencia para el conductor/repartidor. Opcional.
+ * @property barrio Barrio o sector específico de la dirección. Opcional.
+ * @property codigoPostal Código postal de la zona. Opcional.
+ * @property tipoDireccion Clasificación de la dirección (ej. "residencial", "comercial", "sucursal"). Opcional.
  */
 data class DireccionRequest(
     val direccionCompleta: String,

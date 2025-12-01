@@ -1,16 +1,19 @@
 package co.edu.unipiloto.backend.dto
 
 /**
- * DTO utilizado para recibir información del cliente desde el front-end.
+ * 📨 Data Transfer Object (DTO) utilizado para **recibir** información del cliente
+ * desde el front-end (Cliente, Remitente o Receptor).
  *
- * Puede ser usado tanto para crear un cliente nuevo como para actualizar uno existente.
+ * Es la estructura de datos para:
+ * 1. Crear un cliente nuevo.
+ * 2. Actualizar un cliente existente.
  *
- * @property id ID del cliente (null si es un nuevo cliente)
- * @property nombre Nombre completo del cliente
- * @property tipoId Tipo de identificación (ej. CC, NIT)
- * @property numeroId Número de identificación
- * @property telefono Teléfono del cliente
- * @property codigoPais Código del país del teléfono (ej. +57)
+ * @property id ID del cliente. Es opcional ([null]) si se está creando un nuevo cliente.
+ * @property nombre Nombre completo del cliente o razón social.
+ * @property tipoId Tipo de identificación del cliente (ej. "CC", "NIT", "CE"). Opcional.
+ * @property numeroId Número único de identificación del cliente. Opcional.
+ * @property telefono Número de teléfono de contacto. Opcional.
+ * @property codigoPais Código telefónico internacional (ej. "+57", "+1"). Opcional.
  */
 data class ClienteRequest(
     val id: Long? = null,

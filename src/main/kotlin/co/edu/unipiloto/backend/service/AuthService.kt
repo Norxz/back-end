@@ -12,9 +12,10 @@ import org.springframework.stereotype.Service
 import java.time.Instant
 
 /**
- * 🔑 Servicio encargado de la lógica de negocio para la gestión de usuarios (Registro y Login).
+ * 🔑 Servicio de Spring (`@Service`) encargado de la lógica de negocio para la **gestión de usuarios** (Registro y Login).
+ *
  * Actúa como la capa de autenticación principal del sistema, orquestando la persistencia
- * de usuarios y el manejo seguro de contraseñas.
+ * de usuarios y el manejo seguro de contraseñas mediante el [PasswordService].
  */
 @Service
 class AuthService(
@@ -24,9 +25,10 @@ class AuthService(
 ) {
 
     /**
-     * 📝 Registra un nuevo usuario en la base de datos.
-     * Implementa la lógica de validación de unicidad de email, hashing de contraseñas
-     * y la correcta asignación de rol y sucursal.
+     * ## 📝 Registro de Nuevo Usuario
+     *
+     * Persiste un nuevo usuario en la base de datos tras validar la unicidad del email,
+     * aplicar el hashing a la contraseña y asignar correctamente el rol y la sucursal.
      *
      * @param request El objeto [RegisterRequest] que contiene los datos del nuevo usuario.
      * @return El objeto [User] recién creado y persistido.
@@ -35,62 +37,68 @@ class AuthService(
      */
     fun register(request: RegisterRequest): User {
 
-        // 1. Validar duplicados
+        // 1. **Validar unicidad de email**
         if (userRepository.existsByEmail(request.email)) {
-            // Lanza una excepción si el email ya existe para prevenir la duplicidad.
             throw ResourceAlreadyExistsException("El email ${request.email} ya está registrado.")
         }
 
-        // 2. Hashing de contraseña
-        // Utiliza PasswordService para generar un hash seguro (SHA-256) de la contraseña en texto plano.
+        // 2. **Hashing de contraseña**
+        // Se asegura que la contraseña nunca se almacene en texto plano.
         val passwordHash = passwordService.hashPasswordSHA256(request.password)
 
-        // 3. Buscar sucursal si viene
-        // Si se proporciona un sucursalId, se busca la Sucursal correspondiente.
+        // 3. **Buscar sucursal (si aplica)**
+        // Si el DTO incluye un ID de sucursal (para roles operativos), se busca la entidad.
         val sucursal: Sucursal? = request.sucursalId?.let { id ->
             sucursalRepository.findById(id).orElseThrow {
-                // Lanza error si el ID de sucursal es proporcionado pero no es válido.
+                // Lanza error si el ID de sucursal es proporcionado pero es inválido.
                 IllegalArgumentException("La sucursal con ID $id no existe.")
             }
         }
 
-        // 4. Crear la entidad User real
+        // 4. **Crear y mapear la entidad User**
         val newUser = User(
             fullName = request.fullName,
             email = request.email,
             passwordHash = passwordHash,
             phoneNumber = request.phoneNumber,
-            // Convierte el String del DTO a la enumeración Role, asegurando que sea en mayúsculas.
+            // Convierte el String del DTO a la enumeración Role, asegurando que el caso sea correcto.
             role = Role.valueOf(request.role.uppercase()),
             sucursal = sucursal,
-            isActive = request.isActive
+            isActive = request.isActive,
+            fechaCreacion = Instant.now()
         )
 
-        // 5. Guardar y retornar
+        // 5. **Guardar y retornar**
         return userRepository.save(newUser)
     }
 
-
     /**
-     * ✅ Intenta autenticar un usuario verificando su email y contraseña.
+     * ## ✅ Autenticación de Usuario (Login)
      *
-     * El flujo de login es:
-     * 1. Buscar el usuario por email.
-     * 2. Si el usuario existe, se verifica la `rawPassword` (texto plano) contra el `passwordHash` almacenado
-     * usando el `PasswordService`.
-     * 3. Si la verificación es exitosa, se retorna el objeto [User].
+     * Intenta autenticar un usuario verificando su email y la contraseña en texto plano
+     * contra el hash almacenado en la base de datos.
+     *
+     * **Flujo de Login:**
+     * 1. Busca el usuario por email.
+     * 2. Si existe, verifica la `rawPassword` contra el `passwordHash` almacenado.
+     * 3. Si ambos son correctos, retorna el [User].
      *
      * @param email Email del usuario.
      * @param rawPassword Contraseña en texto plano (recibida del cliente).
-     * @return El objeto [User] si la autenticación es exitosa, o null si el usuario no existe o la contraseña es incorrecta.
+     * @return El objeto [User] si la autenticación es exitosa, o `null` si falla (usuario no existe o contraseña incorrecta).
      */
     fun login(email: String, rawPassword: String): User? {
-        // Busca el usuario. Si no lo encuentra, retorna null inmediatamente.
+        // 1. Busca el usuario. Si no lo encuentra, retorna null.
         val user = userRepository.findByEmail(email) ?: return null
 
-        // Verifica la contraseña utilizando el servicio de seguridad
-        return if (passwordService.verifyPassword(rawPassword, user.passwordHash)) {
-            user // Autenticación exitosa
-        } else null // Contraseña incorrecta
+        // 2. Verifica la contraseña utilizando el servicio de seguridad
+        val isPasswordCorrect = passwordService.verifyPassword(rawPassword, user.passwordHash)
+
+        // 3. Retorna el usuario si la verificación es exitosa
+        return if (isPasswordCorrect) {
+            user
+        } else {
+            null
+        }
     }
 }

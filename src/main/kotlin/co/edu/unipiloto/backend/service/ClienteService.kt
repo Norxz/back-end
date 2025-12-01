@@ -9,9 +9,10 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 /**
- * 👨‍💼 Servicio encargado de la lógica de negocio para la gestión de la entidad [Cliente].
- * Proporciona métodos para crear, buscar y listar clientes, además de gestionar las
- * solicitudes asociadas a cada uno.
+ * 👨‍💼 Servicio de Spring (`@Service`) encargado de la lógica de negocio para la gestión de la entidad [Cliente].
+ *
+ * Proporciona métodos transaccionales y de consulta para **crear**, **buscar** y **listar clientes**,
+ * además de gestionar las colecciones de solicitudes asociadas a cada uno.
  */
 @Service
 class ClienteService(
@@ -19,10 +20,15 @@ class ClienteService(
     private val clienteRepository: ClienteRepository
 ) {
 
+    // -------------------------------------------------------------------------
+    // ## Operaciones Transaccionales (Escritura)
+    // -------------------------------------------------------------------------
+
     /**
      * ➕ Crea un nuevo cliente en la base de datos.
-     * Implementa una validación para asegurar que no exista otro cliente con el mismo
-     * número de documento, independientemente de su tipo.
+     *
+     * Implementa una validación crucial para asegurar que no exista otro cliente con el mismo
+     * **número de documento**, previniendo duplicidad en el registro.
      *
      * @param cliente El objeto [Cliente] a ser creado.
      * @return El objeto [Cliente] persistido.
@@ -31,7 +37,7 @@ class ClienteService(
     @Transactional
     fun crearCliente(cliente: Cliente): Cliente {
 
-        // 1. Validar duplicados por número de documento
+        // 1. Validar duplicados por número de documento usando el repositorio
         if (clienteRepository.existsByNumeroId(cliente.numeroId)) {
             throw ResourceAlreadyExistsException(
                 "Ya existe un cliente con número de documento ${cliente.numeroId}"
@@ -42,33 +48,38 @@ class ClienteService(
         return clienteRepository.save(cliente)
     }
 
+    // -------------------------------------------------------------------------
+    // ## Operaciones de Consulta (Lectura)
+    // -------------------------------------------------------------------------
+
     /**
-     * 🔎 Busca un cliente por su ID único.
+     * 🔎 Busca un cliente por su **ID único**.
      *
      * @param id El ID del cliente a buscar.
      * @return La entidad [Cliente] si es encontrada.
      * @throws ResourceNotFoundException si el cliente con el ID especificado no existe.
      */
     fun buscarPorId(id: Long): Cliente {
-        // Utiliza orElseThrow para lanzar una excepción si el cliente no se encuentra
+        // Utiliza orElseThrow para lanzar ResourceNotFoundException si no se encuentra
         return clienteRepository.findById(id).orElseThrow {
             ResourceNotFoundException("El cliente con ID $id no existe.")
         }
     }
 
     /**
-     * 💳 Busca un cliente utilizando la combinación de su tipo y número de documento.
+     * 💳 Busca un cliente utilizando la combinación de su **tipo y número de documento**.
      *
      * @param tipo El tipo de documento (ej: "CC", "NIT").
      * @param numero El número de documento.
-     * @return La entidad [Cliente] si es encontrada, o null si no existe.
+     * @return La entidad [Cliente] si es encontrada, o `null` si no existe.
      */
     fun buscarPorDocumento(tipo: String, numero: String): Cliente? {
         return clienteRepository.findByTipoIdAndNumeroId(tipo, numero)
     }
 
     /**
-     * 📝 Busca clientes cuyos nombres contengan el texto dado, ignorando mayúsculas/minúsculas.
+     * 📝 Busca clientes cuyos **nombres** contengan el texto dado, ignorando mayúsculas/minúsculas.
+     *
      * Útil para funcionalidades de autocompletado en interfaces de usuario.
      *
      * @param nombre El texto a buscar dentro del nombre del cliente.
@@ -79,7 +90,7 @@ class ClienteService(
     }
 
     /**
-     * 📋 Recupera la lista completa de todos los clientes registrados en el sistema.
+     * 📋 Recupera la lista completa de **todos los clientes** registrados en el sistema.
      *
      * @return Una lista de todas las entidades [Cliente].
      */
@@ -89,16 +100,19 @@ class ClienteService(
 
     /**
      * 🔄 Obtiene todas las solicitudes ([Solicitud]) en las que el cliente participa,
-     * ya sea como remitente (quien envía) o como receptor (quien recibe).
+     * ya sea como **remitente** (quien envía) o como **receptor** (quien recibe).
      *
      * @param id El ID del cliente.
      * @return Una lista combinada de las solicitudes donde el cliente es remitente o receptor.
      * @throws ResourceNotFoundException si el cliente no es encontrado.
      */
     fun obtenerSolicitudesDelCliente(id: Long): List<Solicitud> {
-        // Primero, se busca el cliente para asegurar su existencia.
+        // 1. Se busca el cliente para asegurar su existencia y cargar sus relaciones LAZY.
         val cliente = buscarPorId(id)
-        // Se combinan las dos colecciones de solicitudes (como remitente y como receptor).
+
+        // 2. Se combinan las dos colecciones de solicitudes.
+        // Nota: Las colecciones 'solicitudesComoRemitente' y 'solicitudesComoReceptor' se cargan
+        // aquí debido al acceso, si estaban configuradas como FetchType.LAZY.
         return cliente.solicitudesComoRemitente + cliente.solicitudesComoReceptor
     }
 }
