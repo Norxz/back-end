@@ -2,6 +2,7 @@
 
 package co.edu.unipiloto.backend.controller
 
+import co.edu.unipiloto.backend.dto.NearestBranchResponse
 import co.edu.unipiloto.backend.dto.SucursalRequest
 import co.edu.unipiloto.backend.dto.SucursalResponse
 import co.edu.unipiloto.backend.service.SucursalService
@@ -45,13 +46,12 @@ class SucursalController(
     fun findNearestBranchId(
         @RequestParam lat: Double,
         @RequestParam lon: Double
-    ): ResponseEntity<Long> {
-        // NOTA: Se asume que sucursalService.findNearestBranchId retorna Long?
+    ): ResponseEntity<NearestBranchResponse> {
+
         val nearestId = sucursalService.findNearestBranchId(lat, lon)
 
         return nearestId?.let {
-            // Si encuentra un ID, devuelve 200 OK con el ID
-            ResponseEntity.ok(it)
+            ResponseEntity.ok(NearestBranchResponse(id = it))
         } ?: ResponseEntity.notFound().build()
     }
 
