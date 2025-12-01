@@ -103,15 +103,10 @@ class SolicitudController(
         }
     }
 
-// --- CONSULTA POR SUCURSAL (Faltantes) ---
+// --- CONSULTA POR SUCURSAL ---
 
     /**
-     * 🟢 **CORRECCIÓN:** Obtiene las solicitudes **PENDIENTES** de una sucursal específica.
-     *
-     * Mapea a: GET /api/v1/solicitudes/branch/{sucursalId} ⬅️ **Ruta que estaba dando 404**
-     *
-     * @param sucursalId ID de la sucursal.
-     * @return Lista de [SolicitudResponse] en estado PENDIENTE.
+     * Obtiene las solicitudes **PENDIENTES** de una sucursal específica.
      */
     @GetMapping("/branch/{sucursalId}")
     fun getSolicitudesPendingBySucursal(@PathVariable sucursalId: Long): ResponseEntity<List<SolicitudResponse>> {
@@ -122,12 +117,7 @@ class SolicitudController(
     }
 
     /**
-     * 🟢 **ADICIONAL:** Obtiene las solicitudes **ASIGNADAS** de una sucursal específica.
-     *
-     * Mapea a: GET /api/v1/solicitudes/branch/{sucursalId}/assigned
-     *
-     * @param sucursalId ID de la sucursal.
-     * @return Lista de [SolicitudResponse] en estado ASIGNADA o en tránsito.
+     * Obtiene las solicitudes **ASIGNADAS** de una sucursal específica.
      */
     @GetMapping("/branch/{sucursalId}/assigned")
     fun getSolicitudesAssignedBySucursal(@PathVariable sucursalId: Long): ResponseEntity<List<SolicitudResponse>> {
@@ -165,8 +155,6 @@ class SolicitudController(
 
     /**
      * Asigna un gestor a una solicitud.
-     *
-     * Nota: La lógica de servicio (AsignacionService) fue corregida anteriormente para cambiar el estado a "ASIGNADA".
      */
     @PostMapping("/{solicitudId}/asignar-gestor/{gestorId}")
     fun asignarGestor(
@@ -184,7 +172,7 @@ class SolicitudController(
     }
 
     /**
-     * Asigna un conductor a una solicitud.
+     * Asigna un conductor a una solicitud (Usando RequestParam - Método antiguo).
      */
     @PostMapping("/{solicitudId}/asignar-conductor")
     fun asignarConductor(
@@ -195,6 +183,44 @@ class SolicitudController(
         return try {
             val solicitud = asignacionService.asignarConductorASolicitud(solicitudId, gestorId, conductorId)
             ResponseEntity(SolicitudResponse(solicitud), HttpStatus.OK)
+        } catch (e: ResourceNotFoundException) {
+            ResponseEntity(e.message, HttpStatus.NOT_FOUND)
+        } catch (e: Exception) {
+            ResponseEntity("Error al asignar conductor: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
+        }
+    }
+
+    // 🏆 NUEVA FUNCIÓN PARA CORREGIR EL ERROR 404 DE ANDROID
+    /**
+     * Asigna o reasigna un conductor/recolector a una solicitud,
+     * utilizando la ruta y el formato de cuerpo JSON que espera la app Android.
+     *
+     * Mapea a: PUT /api/v1/solicitudes/{solicitudId}/assign-driver
+     * Cuerpo esperado: {"recolectorId": "3"}
+     */
+    @PutMapping("/{solicitudId}/assign-driver")
+    fun assignDriver(
+        @PathVariable solicitudId: Long,
+        @RequestBody body: Map<String, String>
+    ): ResponseEntity<*> {
+        val recolectorIdString = body["recolectorId"]
+
+        if (recolectorIdString.isNullOrEmpty()) {
+            return ResponseEntity("Falta el campo 'recolectorId' en la petición.", HttpStatus.BAD_REQUEST)
+        }
+
+        val recolectorId = recolectorIdString.toLongOrNull()
+        if (recolectorId == null) {
+            return ResponseEntity("El campo 'recolectorId' debe ser un número válido.", HttpStatus.BAD_REQUEST)
+        }
+
+        return try {
+            // Asumiendo que el gestorId es manejado por la capa de servicio o es implícito,
+            // usaremos la función de asignación de conductor, simplificando la lógica para
+            // manejar la reasignación/asignación por ID de recolector.
+            val solicitudActualizada = asignacionService.asignarRecolectorASolicitud(solicitudId, recolectorId)
+
+            ResponseEntity(SolicitudResponse(solicitudActualizada), HttpStatus.OK)
         } catch (e: ResourceNotFoundException) {
             ResponseEntity(e.message, HttpStatus.NOT_FOUND)
         } catch (e: Exception) {
