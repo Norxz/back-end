@@ -28,6 +28,7 @@ data class SolicitudResponse(
     val fechaRecoleccion: String,
     val franjaHoraria: String,
     val direccionCompleta: String,
+    val direccionRecoleccion: String?,
     val guia: GuiaResponse,
     val recolectorId: Long? = null,
     val recolectorName: String? = null,
@@ -49,6 +50,8 @@ data class SolicitudResponse(
 
         fechaRecoleccion = solicitud.fechaRecoleccion,
         franjaHoraria = solicitud.franjaHoraria,
+
+        direccionRecoleccion = solicitud.direccionRecoleccion?.direccionCompleta,
 
         // Extrae el campo de la entidad Direccion anidada.
         direccionCompleta = solicitud.direccionEntrega.direccionCompleta,
